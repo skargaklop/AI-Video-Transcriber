@@ -6,7 +6,23 @@ AI视频转录器启动脚本
 import os
 import sys
 import subprocess
+import threading
+import time
+import webbrowser
+import urllib.request
 from pathlib import Path
+
+
+def open_browser(url: str, timeout: int = 15) -> None:
+    """Wait until the server is up, then open the browser."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            urllib.request.urlopen(url, timeout=1)
+            break  # server responded
+        except Exception:
+            time.sleep(0.5)
+    webbrowser.open(url)
 
 def check_dependencies():
     """检查依赖是否安装"""
@@ -97,6 +113,11 @@ def main():
         if not production_mode:
             cmd.append("--reload")
         
+        # Open browser automatically once the server is ready
+        url = f"http://localhost:{port}"
+        t = threading.Thread(target=open_browser, args=(url,), daemon=True)
+        t.start()
+
         subprocess.run(cmd)
         
     except KeyboardInterrupt:
