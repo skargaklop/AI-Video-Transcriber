@@ -9,21 +9,21 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.2/marked.min.js"></script>
   <style>
     :root {
-      --bg:           #2F5759;
-      --surface:      #d4ede3;
-      --surface-2:    #bfe3d4;
-      --surface-3:    #417A76;
-      --border:       #417A76;
-      --border-light: #5a9490;
-      --accent:       #7CCEAD;
-      --accent-h:     #9adfc0;
-      --accent-dim:   #417A76;
-      --accent-text:  #7CCEAD;
-      --text:         #e8f5f0;
-      --text-on-surface: #1e3c3a;
-      --text-muted:   #7CCEAD;
-      --text-dim:     #5a9490;
-      --success:      #7CCEAD;
+      --bg:           #2e4f51;
+      --surface:      #eaf1ee;
+      --surface-2:    #dde9e5;
+      --surface-3:    #4f7c78;
+      --border:       #5a8480;
+      --border-light: #7aa8a4;
+      --accent:       #6aab94;
+      --accent-h:     #7ec4ac;
+      --accent-dim:   #4f7c78;
+      --accent-text:  #6aab94;
+      --text:         #dce8e4;
+      --text-on-surface: #263d3a;
+      --text-muted:   #6aab94;
+      --text-dim:     #6e9490;
+      --success:      #6aab94;
       --error:        #e07878;
       --r:            12px;
       --r-sm:         8px;
@@ -112,7 +112,7 @@
     }
     .lang-option.active {
       color: var(--text-on-surface);
-      background: rgba(124,206,173,.2);
+      background: rgba(106,171,148,.15);
     }
     .lang-option.active::after {
       content: "";
@@ -190,7 +190,7 @@
     .url-input::placeholder { color: var(--text-dim); }
     .url-input:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(124,206,173,.22);
+      box-shadow: 0 0 0 3px rgba(106,171,148,.22);
     }
 
     .btn-go {
@@ -267,7 +267,7 @@
     }
     .inline-lang-select:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(124,206,173,.22);
+      box-shadow: 0 0 0 3px rgba(106,171,148,.22);
     }
     .inline-lang-select option { background: var(--surface-2); }
 
@@ -334,7 +334,7 @@
     .s-input::placeholder { color: var(--text-dim); }
     .s-input:focus, .s-select:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(124,206,173,.22);
+      box-shadow: 0 0 0 3px rgba(106,171,148,.22);
     }
 
     .check-row {
@@ -450,8 +450,8 @@
     }
     .mode-badge.whisper {
       color: var(--accent-dim);
-      border-color: rgba(124,206,173,.45);
-      background: rgba(124,206,173,.1);
+      border-color: rgba(106,171,148,.35);
+      background: rgba(106,171,148,.1);
     }
     .mode-badge.groq {
       color: #74b6d8;
@@ -622,8 +622,8 @@
 
     .md-content a {
       color: var(--accent-text);
-      background: rgba(124,206,173,.15);
-      border: 1px solid rgba(124,206,173,.32);
+      background: rgba(106,171,148,.12);
+      border: 1px solid rgba(106,171,148,.22);
       border-radius: 4px;
       padding: 1px 5px;
       text-decoration: none;
