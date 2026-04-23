@@ -5,9 +5,13 @@
 class VideoTranscriber {
   constructor() {
     this.currentTaskId  = null;
+    this.currentTask    = null;
     this.eventSource    = null;
     this.apiBase        = '/api';
     this.currentLang    = 'en';
+    this.uiLanguages    = ['en', 'ru', 'uk'];
+    this.langLabels     = { en: 'English', ru: 'Русский', uk: 'Українська' };
+    this.htmlLangs      = { en: 'en', ru: 'ru', uk: 'uk' };
 
     /* Smart progress simulation */
     this.sp = {
@@ -22,6 +26,19 @@ class VideoTranscriber {
         video_url_placeholder:   'Paste YouTube, Tiktok, Bilibili or other platform video URLs...',
         start_transcription:     'Transcribe',
         ai_settings:             'AI Settings',
+        groq_transcription:      'Groq Transcription',
+        groq_api_key:            'Groq API Key',
+        groq_api_key_placeholder:'gsk_...',
+        groq_model:              'Groq Whisper Model',
+        groq_language:           'Input Language',
+        groq_language_placeholder:'auto',
+        groq_prompt:             'Groq Prompt',
+        groq_prompt_placeholder: 'Names, topic, spelling...',
+        include_timecodes:       'Include time codes',
+        copy_text:               'Copy text',
+        copied_text:             'Copied',
+        save_text:               'Save',
+        summary_provider:        'Summary Provider',
         model_base_url:          'Model API Base URL',
         model_base_url_placeholder: 'https://openrouter.ai/api/v1',
         api_key:                 'API Key',
@@ -29,7 +46,17 @@ class VideoTranscriber {
         fetch_models:            'Fetch',
         model_select:            'Model',
         model_default:           '— use server default —',
+        reasoning_effort:        'Reasoning',
+        reasoning_auto:          'Auto',
+        reasoning_none:          'None',
+        reasoning_minimal:       'Minimal',
+        reasoning_low:           'Low',
+        reasoning_medium:        'Medium',
+        reasoning_high:          'High',
+        reasoning_xhigh:         'Extra high',
         summary_language:        'Summary Language',
+        summary_prompt_label:    'Summary Prompt',
+        summary_prompt_placeholder: 'Optional: tell the model how to summarize, e.g. "focus on action items and risks".',
         processing_progress:     'Processing',
         preparing:               'Preparing…',
         transcript_text:         'Transcript',
@@ -38,19 +65,28 @@ class VideoTranscriber {
         download_transcript:     'Transcript',
         download_translation:    'Translation',
         download_summary:        'Summary',
+        download_summary_md:     'Summary MD',
+        download_summary_html:   'Summary HTML',
+        output_format:           'Output Format',
+        format_markdown:         'Markdown',
+        format_html:             'HTML',
+        format_both:             'Markdown + HTML',
+        generate_summary:        'Generate Summary',
+        summary_waiting:         'Transcript is ready. Generate the summary when you want to send it to the summary provider.',
+        generating_summary_btn:  'Generating...',
         empty_hint:              'Paste a video URL above and let AI do the heavy lifting.',
-        footer_text:             'This tool is part of <a href="https://sipsip.ai" target="_blank" style="color:var(--accent-text);text-decoration:none;">sipsip.ai</a> — transcribe any video, and get daily AI briefs from your favorite creators delivered to your inbox. Free to start.',
         processing:              'Processing…',
-        downloading_video:       'Downloading audio…',
+        downloading_video:       'Resolving audio URL…',
         parsing_video:           'Parsing video info…',
         transcribing_audio:      'Transcribing audio…',
         optimizing_transcript:   'Optimizing transcript…',
         generating_summary:      'Generating summary…',
         detecting_subtitles:     'Detecting subtitles…',
         subtitle_found:          'Subtitles found! Processing text…',
-        no_subtitle:             'No subtitles found, downloading audio…',
+        no_subtitle:             'No subtitles found, resolving audio URL for Groq…',
         mode_subtitle:           '⚡ Subtitle',
-        mode_whisper:            '🎙 Whisper',
+        mode_whisper:            'Groq URL',
+        mode_groq:               'Groq URL',
         completed:               'Done!',
         error_invalid_url:       'Please enter a valid video URL',
         error_processing_failed: 'Processing failed: ',
@@ -60,12 +96,173 @@ class VideoTranscriber {
         models_loaded:           (n) => `${n} models loaded`,
         models_error:            'Failed to fetch models',
       },
+      ru: {
+        title:                   'AI видео транскрибатор',
+        subtitle:                'Автоматическая транскрибация и AI-сводки для 30+ платформ',
+        video_url_placeholder:   'Вставьте ссылку на YouTube, TikTok, Bilibili или другое видео...',
+        start_transcription:     'Транскрибировать',
+        ai_settings:             'Настройки AI',
+        groq_transcription:      'Транскрибация Groq',
+        groq_api_key:            'Groq API Key',
+        groq_api_key_placeholder:'gsk_...',
+        groq_model:              'Модель Groq Whisper',
+        groq_language:           'Язык аудио',
+        groq_language_placeholder:'auto',
+        groq_prompt:             'Промпт Groq',
+        groq_prompt_placeholder: 'Имена, тема, термины...',
+        include_timecodes:       'Добавить таймкоды',
+        copy_text:               'Копировать текст',
+        copied_text:             'Скопировано',
+        save_text:               'Сохранить',
+        summary_provider:        'Провайдер сводки',
+        model_base_url:          'Base URL API модели',
+        model_base_url_placeholder: 'https://openrouter.ai/api/v1',
+        api_key:                 'API Key',
+        api_key_placeholder:     'sk-...',
+        fetch_models:            'Загрузить',
+        model_select:            'Модель',
+        model_default:           '-- использовать модель сервера --',
+        reasoning_effort:        'Рассуждение',
+        reasoning_auto:          'Авто',
+        reasoning_none:          'Нет',
+        reasoning_minimal:       'Минимальное',
+        reasoning_low:           'Низкое',
+        reasoning_medium:        'Среднее',
+        reasoning_high:          'Высокое',
+        reasoning_xhigh:         'Очень высокое',
+        summary_language:        'Язык сводки',
+        summary_prompt_label:    'Промпт сводки',
+        summary_prompt_placeholder: 'Необязательно: укажите, как делать сводку, например "сфокусируйся на действиях и рисках".',
+        processing_progress:     'Обработка',
+        preparing:               'Подготовка...',
+        transcript_text:         'Транскрипт',
+        intelligent_summary:     'AI-сводка',
+        translation:             'Перевод',
+        download_transcript:     'Транскрипт',
+        download_translation:    'Перевод',
+        download_summary:        'Сводка',
+        download_summary_md:     'Сводка MD',
+        download_summary_html:   'Сводка HTML',
+        output_format:           'Формат вывода',
+        format_markdown:         'Markdown',
+        format_html:             'HTML',
+        format_both:             'Markdown + HTML',
+        generate_summary:        'Создать сводку',
+        summary_waiting:         'Транскрипт готов. Создайте сводку, когда будете готовы отправить его провайдеру.',
+        generating_summary_btn:  'Создание...',
+        empty_hint:              'Вставьте ссылку на видео выше, и AI обработает его.',
+        processing:              'Обработка...',
+        downloading_video:       'Получение аудио URL...',
+        parsing_video:           'Разбор информации о видео...',
+        transcribing_audio:      'Транскрибация аудио...',
+        optimizing_transcript:   'Оптимизация транскрипта...',
+        generating_summary:      'Создание сводки...',
+        detecting_subtitles:     'Поиск субтитров...',
+        subtitle_found:          'Субтитры найдены, обрабатываю текст...',
+        no_subtitle:             'Субтитры не найдены, получаю аудио URL для Groq...',
+        mode_subtitle:           'Субтитры',
+        mode_whisper:            'Groq URL',
+        mode_groq:               'Groq URL',
+        completed:               'Готово!',
+        error_invalid_url:       'Введите корректную ссылку на видео',
+        error_processing_failed: 'Ошибка обработки: ',
+        error_no_download:       'Нет файла для скачивания',
+        error_download_failed:   'Ошибка скачивания: ',
+        fetching_models:         'Загрузка моделей...',
+        models_loaded:           (n) => `${n} моделей загружено`,
+        models_error:            'Не удалось загрузить модели',
+      },
+      uk: {
+        title:                   'AI відео транскрибатор',
+        subtitle:                'Автоматична транскрибація та AI-зведення для 30+ платформ',
+        video_url_placeholder:   'Вставте посилання на YouTube, TikTok, Bilibili або інше відео...',
+        start_transcription:     'Транскрибувати',
+        ai_settings:             'Налаштування AI',
+        groq_transcription:      'Транскрибація Groq',
+        groq_api_key:            'Groq API Key',
+        groq_api_key_placeholder:'gsk_...',
+        groq_model:              'Модель Groq Whisper',
+        groq_language:           'Мова аудіо',
+        groq_language_placeholder:'auto',
+        groq_prompt:             'Промпт Groq',
+        groq_prompt_placeholder: 'Імена, тема, терміни...',
+        include_timecodes:       'Додати таймкоди',
+        copy_text:               'Копіювати текст',
+        copied_text:             'Скопійовано',
+        save_text:               'Зберегти',
+        summary_provider:        'Провайдер зведення',
+        model_base_url:          'Base URL API моделі',
+        model_base_url_placeholder: 'https://openrouter.ai/api/v1',
+        api_key:                 'API Key',
+        api_key_placeholder:     'sk-...',
+        fetch_models:            'Завантажити',
+        model_select:            'Модель',
+        model_default:           '-- використовувати модель сервера --',
+        reasoning_effort:        'Міркування',
+        reasoning_auto:          'Авто',
+        reasoning_none:          'Немає',
+        reasoning_minimal:       'Мінімальне',
+        reasoning_low:           'Низьке',
+        reasoning_medium:        'Середнє',
+        reasoning_high:          'Високе',
+        reasoning_xhigh:         'Дуже високе',
+        summary_language:        'Мова зведення',
+        summary_prompt_label:    'Промпт зведення',
+        summary_prompt_placeholder: 'Необовʼязково: вкажіть, як створити зведення, наприклад "зосередься на діях і ризиках".',
+        processing_progress:     'Обробка',
+        preparing:               'Підготовка...',
+        transcript_text:         'Транскрипт',
+        intelligent_summary:     'AI-зведення',
+        translation:             'Переклад',
+        download_transcript:     'Транскрипт',
+        download_translation:    'Переклад',
+        download_summary:        'Зведення',
+        download_summary_md:     'Зведення MD',
+        download_summary_html:   'Зведення HTML',
+        output_format:           'Формат виводу',
+        format_markdown:         'Markdown',
+        format_html:             'HTML',
+        format_both:             'Markdown + HTML',
+        generate_summary:        'Створити зведення',
+        summary_waiting:         'Транскрипт готовий. Створіть зведення, коли будете готові надіслати його провайдеру.',
+        generating_summary_btn:  'Створення...',
+        empty_hint:              'Вставте посилання на відео вище, і AI обробить його.',
+        processing:              'Обробка...',
+        downloading_video:       'Отримання аудіо URL...',
+        parsing_video:           'Розбір інформації про відео...',
+        transcribing_audio:      'Транскрибація аудіо...',
+        optimizing_transcript:   'Оптимізація транскрипту...',
+        generating_summary:      'Створення зведення...',
+        detecting_subtitles:     'Пошук субтитрів...',
+        subtitle_found:          'Субтитри знайдено, обробляю текст...',
+        no_subtitle:             'Субтитри не знайдено, отримую аудіо URL для Groq...',
+        mode_subtitle:           'Субтитри',
+        mode_whisper:            'Groq URL',
+        mode_groq:               'Groq URL',
+        completed:               'Готово!',
+        error_invalid_url:       'Введіть коректне посилання на відео',
+        error_processing_failed: 'Помилка обробки: ',
+        error_no_download:       'Немає файлу для завантаження',
+        error_download_failed:   'Помилка завантаження: ',
+        fetching_models:         'Завантаження моделей...',
+        models_loaded:           (n) => `${n} моделей завантажено`,
+        models_error:            'Не вдалося завантажити моделі',
+      },
       zh: {
         title:                   'AI 视频转录器',
         subtitle:                '粘贴 YouTube、TikTok 或任意公开视频链接，获取转录文本和 AI 摘要。',
         video_url_placeholder:   '请输入视频链接…',
         start_transcription:     '开始转录',
         ai_settings:             'AI 设置',
+        groq_transcription:      'Groq 转录',
+        groq_api_key:            'Groq API Key',
+        groq_api_key_placeholder:'gsk_...',
+        groq_model:              'Groq Whisper 模型',
+        groq_language:           '输入语言',
+        groq_language_placeholder:'auto',
+        groq_prompt:             'Groq 提示词',
+        groq_prompt_placeholder: '名称、主题、拼写...',
+        summary_provider:        '摘要模型',
         model_base_url:          'Model API 地址',
         model_base_url_placeholder: 'https://openrouter.ai/api/v1',
         api_key:                 'API Key',
@@ -73,7 +270,17 @@ class VideoTranscriber {
         fetch_models:            '获取',
         model_select:            '模型',
         model_default:           '— 使用服务器默认 —',
+        reasoning_effort:        '推理强度',
+        reasoning_auto:          '自动',
+        reasoning_none:          '无',
+        reasoning_minimal:       '最小',
+        reasoning_low:           '低',
+        reasoning_medium:        '中',
+        reasoning_high:          '高',
+        reasoning_xhigh:         '超高',
         summary_language:        '摘要语言',
+        summary_prompt_label:    '摘要提示词',
+        summary_prompt_placeholder: '可选：告诉模型如何摘要，例如“重点总结行动项和风险”。',
         processing_progress:     '处理进度',
         preparing:               '准备中…',
         transcript_text:         '转录文本',
@@ -82,19 +289,28 @@ class VideoTranscriber {
         download_transcript:     '转录',
         download_translation:    '翻译',
         download_summary:        '摘要',
+        download_summary_md:     '摘要 MD',
+        download_summary_html:   '摘要 HTML',
+        output_format:           '输出格式',
+        format_markdown:         'Markdown',
+        format_html:             'HTML',
+        format_both:             'Markdown + HTML',
+        generate_summary:        '生成摘要',
+        summary_waiting:         '转录已完成。确认后再发送给摘要模型。',
+        generating_summary_btn:  '生成中...',
         empty_hint:              '在上方粘贴视频链接，让 AI 来处理一切。',
-        footer_text:             '本工具是 <a href="https://sipsip.ai" target="_blank" style="color:var(--accent-text);text-decoration:none;">sipsip.ai</a> 的一部分 — 转录任意视频，并将你关注的创作者的每日 AI 简报发送到你的邮箱。免费开始使用。',
         processing:              '处理中…',
-        downloading_video:       '正在下载音频…',
+        downloading_video:       '正在解析音频 URL…',
         parsing_video:           '正在解析视频信息…',
         transcribing_audio:      '正在转录音频…',
         optimizing_transcript:   '正在优化转录文本…',
         generating_summary:      '正在生成摘要…',
         detecting_subtitles:     '正在检测字幕…',
         subtitle_found:          '字幕获取成功！正在处理文本…',
-        no_subtitle:             '未找到字幕，正在下载音频…',
+        no_subtitle:             '未找到字幕，正在解析 Groq 音频 URL…',
         mode_subtitle:           '⚡ 字幕模式',
-        mode_whisper:            '🎙 Whisper 模式',
+        mode_whisper:            'Groq URL',
+        mode_groq:               'Groq URL',
         completed:               '处理完成！',
         error_invalid_url:       '请输入有效的视频链接',
         error_processing_failed: '处理失败：',
@@ -109,7 +325,8 @@ class VideoTranscriber {
     this._initElements();
     this._bindEvents();
     this._loadSettings();
-    this._switchLang('en');
+    this._switchLang(this._savedUiLang || 'en');
+    this._updateReasoningAvailability();
   }
 
   /* ── Elements ─────────────────────────────────────────── */
@@ -118,8 +335,11 @@ class VideoTranscriber {
     this.videoUrlInput      = document.getElementById('videoUrl');
     this.submitBtn          = document.getElementById('submitBtn');
     this.summaryLangSel     = document.getElementById('summaryLanguage');
+    this.langSwitcher       = document.getElementById('langSwitcher');
     this.langToggle         = document.getElementById('langToggle');
     this.langText           = document.getElementById('langText');
+    this.langMenu           = document.getElementById('langMenu');
+    this.langOptions        = Array.from(document.querySelectorAll('.lang-option'));
     this.errorBanner        = document.getElementById('errorBanner');
     this.errorMsg           = document.getElementById('errorMsg');
     this.emptyState         = document.getElementById('emptyState');
@@ -130,11 +350,22 @@ class VideoTranscriber {
     this.progressMessage    = document.getElementById('progressMessage');
     this.resultsPanel       = document.getElementById('resultsPanel');
     this.scriptContent      = document.getElementById('scriptContent');
+    this.copyTranscriptTop  = document.getElementById('copyTranscriptTop');
+    this.copyTranscriptBottom = document.getElementById('copyTranscriptBottom');
+    this.saveTranscriptTop  = document.getElementById('saveTranscriptTop');
+    this.saveTranscriptBottom = document.getElementById('saveTranscriptBottom');
+    this.saveTranscriptFormatTop = document.getElementById('saveTranscriptFormatTop');
+    this.saveTranscriptFormatBottom = document.getElementById('saveTranscriptFormatBottom');
     this.summaryContent     = document.getElementById('summaryContent');
+    this.summaryPrompt      = document.getElementById('summaryPrompt');
     this.translationContent = document.getElementById('translationContent');
     this.dlScript           = document.getElementById('downloadScript');
     this.dlTranslation      = document.getElementById('downloadTranslation');
     this.dlSummary          = document.getElementById('downloadSummary');
+    this.dlSummaryHtml      = document.getElementById('downloadSummaryHtml');
+    this.generateSummaryBtn = document.getElementById('generateSummary');
+    this.summaryFormatSel   = document.getElementById('summaryFormat');
+    this.summaryPromptInput = document.getElementById('summaryPromptInput');
     this.translationTabBtn  = document.getElementById('translationTabBtn');
     this.tabBtns            = document.querySelectorAll('.tab-btn');
     this.tabPanes           = document.querySelectorAll('.tab-pane');
@@ -143,9 +374,15 @@ class VideoTranscriber {
     this.settingsBody       = document.getElementById('settingsBody');
     this.modelBaseUrl       = document.getElementById('modelBaseUrl');
     this.apiKeyInput        = document.getElementById('apiKeyInput');
+    this.groqApiKeyInput    = document.getElementById('groqApiKeyInput');
+    this.groqModelSelect    = document.getElementById('groqModelSelect');
+    this.groqLanguageInput  = document.getElementById('groqLanguageInput');
+    this.groqPromptInput    = document.getElementById('groqPromptInput');
+    this.includeTimecodesInput = document.getElementById('includeTimecodesInput');
     this.fetchModelsBtn     = document.getElementById('fetchModelsBtn');
     this.fetchStatus        = document.getElementById('fetchStatus');
     this.modelSelect        = document.getElementById('modelSelect');
+    this.reasoningEffortSelect = document.getElementById('reasoningEffortSelect');
     this.fetchIcon          = document.getElementById('fetchIcon');
   }
 
@@ -153,8 +390,24 @@ class VideoTranscriber {
   _bindEvents() {
     this.form.addEventListener('submit', (e) => { e.preventDefault(); this._startTranscription(); });
 
-    this.langToggle.addEventListener('click', () => {
-      this._switchLang(this.currentLang === 'en' ? 'zh' : 'en');
+    this.langToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this._toggleLangMenu();
+    });
+    this.langOptions.forEach(option => {
+      option.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this._switchLang(option.dataset.lang);
+        this._saveSettings();
+        this._closeLangMenu();
+        this.langToggle.focus();
+      });
+    });
+    document.addEventListener('click', (e) => {
+      if (!this.langSwitcher.contains(e.target)) this._closeLangMenu();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this._closeLangMenu();
     });
 
     // Settings toggle
@@ -165,6 +418,7 @@ class VideoTranscriber {
 
     // Fetch models
     this.fetchModelsBtn.addEventListener('click', () => this._fetchModels());
+    this.modelSelect.addEventListener('change', () => this._updateReasoningAvailability());
 
     // Auto-fetch when both fields filled (debounced)
     const debouncedFetch = this._debounce(() => {
@@ -174,7 +428,20 @@ class VideoTranscriber {
     this.apiKeyInput.addEventListener('input', debouncedFetch);
 
     // Persist settings
-    [this.modelBaseUrl, this.apiKeyInput, this.modelSelect, this.summaryLangSel].forEach(el => {
+    [
+      this.modelBaseUrl,
+      this.apiKeyInput,
+      this.modelSelect,
+      this.reasoningEffortSelect,
+      this.summaryLangSel,
+      this.groqApiKeyInput,
+      this.groqModelSelect,
+      this.groqLanguageInput,
+      this.groqPromptInput,
+      this.includeTimecodesInput,
+      this.summaryFormatSel,
+      this.summaryPromptInput,
+    ].forEach(el => {
       el.addEventListener('change', () => this._saveSettings());
     });
 
@@ -186,39 +453,90 @@ class VideoTranscriber {
     // Downloads
     this.dlScript.addEventListener('click',      () => this._downloadFile('script'));
     this.dlTranslation.addEventListener('click', () => this._downloadFile('translation'));
-    this.dlSummary.addEventListener('click',     () => this._downloadFile('summary'));
+    this.dlSummary.addEventListener('click',     () => this._downloadFile('summary_md'));
+    this.dlSummaryHtml.addEventListener('click', () => this._downloadFile('summary_html'));
+    this.generateSummaryBtn.addEventListener('click', () => this._generateSummary());
+    this.copyTranscriptTop.addEventListener('click', () => this._copyTranscriptText(this.copyTranscriptTop));
+    this.copyTranscriptBottom.addEventListener('click', () => this._copyTranscriptText(this.copyTranscriptBottom));
+    this.saveTranscriptTop.addEventListener('click', () => this._saveTranscript(this.saveTranscriptFormatTop.value));
+    this.saveTranscriptBottom.addEventListener('click', () => this._saveTranscript(this.saveTranscriptFormatBottom.value));
+    this.saveTranscriptFormatTop.addEventListener('change', () => {
+      this.saveTranscriptFormatBottom.value = this.saveTranscriptFormatTop.value;
+      this._saveSettings();
+    });
+    this.saveTranscriptFormatBottom.addEventListener('change', () => {
+      this.saveTranscriptFormatTop.value = this.saveTranscriptFormatBottom.value;
+      this._saveSettings();
+    });
   }
 
   /* ── i18n ─────────────────────────────────────────────── */
-  t(key) { return this.i18n[this.currentLang][key] || this.i18n['en'][key] || key; }
+  t(key) {
+    const active = this.i18n[this.currentLang] || this.i18n.en;
+    return active[key] || this.i18n.en[key] || key;
+  }
 
   _switchLang(lang) {
+    if (!this.uiLanguages.includes(lang)) lang = 'en';
     this.currentLang = lang;
-    this.langText.textContent = lang === 'en' ? 'English' : '中文';
-    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+    this.langText.textContent = this.langLabels[lang] || this.langLabels.en;
+    document.documentElement.lang = this.htmlLangs[lang] || 'en';
     document.title = this.t('title');
 
     document.querySelectorAll('[data-i18n]').forEach(el => {
       const v = this.t(el.dataset.i18n);
       if (typeof v === 'string') {
-        // footer 等允许含 HTML 的 key 用 innerHTML，其余保持 textContent
-        if (el.dataset.i18n === 'footer_text') el.innerHTML = v;
-        else el.textContent = v;
+        el.textContent = v;
       }
     });
     document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
       const v = this.t(el.dataset.i18nPlaceholder);
       if (typeof v === 'string') el.placeholder = v;
     });
+    this._syncLangMenu();
+  }
+
+  _toggleLangMenu() {
+    if (this.langMenu.hidden) this._openLangMenu();
+    else this._closeLangMenu();
+  }
+
+  _openLangMenu() {
+    this._syncLangMenu();
+    this.langMenu.hidden = false;
+    this.langToggle.setAttribute('aria-expanded', 'true');
+  }
+
+  _closeLangMenu() {
+    this.langMenu.hidden = true;
+    this.langToggle.setAttribute('aria-expanded', 'false');
+  }
+
+  _syncLangMenu() {
+    this.langOptions.forEach(option => {
+      const active = option.dataset.lang === this.currentLang;
+      option.classList.toggle('active', active);
+      option.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
   }
 
   /* ── Settings persistence ─────────────────────────────── */
   _saveSettings() {
     const s = {
+      uiLang:   this.currentLang,
       baseUrl:  this.modelBaseUrl.value,
       apiKey:   this.apiKeyInput.value,
       model:    this.modelSelect.value,
+      reasoningEffort: this.reasoningEffortSelect.value,
       summaryLang: this.summaryLangSel.value,
+      groqApiKey: this.groqApiKeyInput.value,
+      groqModel: this.groqModelSelect.value,
+      groqLanguage: this.groqLanguageInput.value,
+      groqPrompt: this.groqPromptInput.value,
+      includeTimecodes: this.includeTimecodesInput.checked,
+      summaryFormat: this.summaryFormatSel.value,
+      summaryPrompt: this.summaryPromptInput.value,
+      transcriptSaveFormat: this.saveTranscriptFormatTop.value,
     };
     try { localStorage.setItem('vt_settings', JSON.stringify(s)); } catch (_) {}
   }
@@ -228,14 +546,27 @@ class VideoTranscriber {
       const raw = localStorage.getItem('vt_settings');
       if (!raw) return;
       const s = JSON.parse(raw);
+      if (this.uiLanguages.includes(s.uiLang)) this._savedUiLang = s.uiLang;
       if (s.baseUrl)     this.modelBaseUrl.value = s.baseUrl;
       if (s.apiKey)      this.apiKeyInput.value  = s.apiKey;
+      if (s.reasoningEffort) this.reasoningEffortSelect.value = s.reasoningEffort;
       if (s.summaryLang) this.summaryLangSel.value = s.summaryLang;
+      if (s.groqApiKey)  this.groqApiKeyInput.value = s.groqApiKey;
+      if (s.groqModel)   this.groqModelSelect.value = s.groqModel;
+      if (s.groqLanguage) this.groqLanguageInput.value = s.groqLanguage;
+      if (s.groqPrompt)  this.groqPromptInput.value = s.groqPrompt;
+      this.includeTimecodesInput.checked = Boolean(s.includeTimecodes);
+      if (s.summaryFormat) this.summaryFormatSel.value = s.summaryFormat;
+      if (s.summaryPrompt) this.summaryPromptInput.value = s.summaryPrompt;
+      if (['md', 'txt'].includes(s.transcriptSaveFormat)) {
+        this.saveTranscriptFormatTop.value = s.transcriptSaveFormat;
+        this.saveTranscriptFormatBottom.value = s.transcriptSaveFormat;
+      }
       // Model options will be restored after fetching
       this._savedModel = s.model || '';
 
       // Auto-open settings if credentials were saved
-      if (s.baseUrl || s.apiKey) {
+      if (s.baseUrl || s.apiKey || s.groqApiKey) {
         this.settingsBody.classList.add('open');
         this.settingsToggle.classList.add('open');
         // Attempt to re-fetch model list silently
@@ -287,6 +618,7 @@ class VideoTranscriber {
         this.modelSelect.value = this._savedModel;
         this._savedModel = '';
       }
+      this._updateReasoningAvailability();
 
       this._setFetchStatus('ok', typeof this.t('models_loaded') === 'function'
         ? this.t('models_loaded')(models.length)
@@ -304,6 +636,23 @@ class VideoTranscriber {
   _setFetchStatus(cls, msg) {
     this.fetchStatus.className = 'fetch-status' + (cls ? ` ${cls}` : '');
     this.fetchStatus.textContent = msg;
+  }
+
+  _modelSupportsReasoning(modelId) {
+    const id = String(modelId || '').toLowerCase().split('/').pop();
+    return id.startsWith('gpt-5') || id.startsWith('o1') || id.startsWith('o3') || id.startsWith('o4');
+  }
+
+  _updateReasoningAvailability() {
+    if (!this.reasoningEffortSelect) return;
+    const modelId = this.modelSelect.value;
+    if (!modelId) {
+      this.reasoningEffortSelect.disabled = true;
+      return;
+    }
+    const supported = this._modelSupportsReasoning(modelId);
+    this.reasoningEffortSelect.disabled = !supported;
+    if (!supported) this.reasoningEffortSelect.value = '';
   }
 
   /* ── Transcription ────────────────────────────────────── */
@@ -330,6 +679,16 @@ class VideoTranscriber {
       if (apiKey)  fd.append('api_key',       apiKey);
       if (baseUrl) fd.append('model_base_url', baseUrl);
       if (modelId) fd.append('model_id',       modelId);
+
+      const groqKey = this.groqApiKeyInput.value.trim();
+      const groqModel = this.groqModelSelect.value;
+      const groqLanguage = this.groqLanguageInput.value.trim();
+      const groqPrompt = this.groqPromptInput.value.trim();
+      if (groqKey) fd.append('groq_api_key', groqKey);
+      if (groqModel) fd.append('groq_model', groqModel);
+      if (groqLanguage && !['auto', 'auto-detect', 'autodetect', 'detect'].includes(groqLanguage.toLowerCase())) fd.append('groq_language', groqLanguage);
+      if (groqPrompt) fd.append('groq_prompt', groqPrompt);
+      fd.append('include_timecodes', this.includeTimecodesInput.checked ? 'true' : 'false');
 
       const resp = await fetch(`${this.apiBase}/process-video`, { method: 'POST', body: fd });
       if (!resp.ok) {
@@ -364,9 +723,27 @@ class VideoTranscriber {
 
         this._updateProgress(task.progress, task.message, true);
 
-        if (task.status === 'completed') {
+        if (task.summary_status === 'processing') {
+          this.currentTask = task;
+          if (this.summaryPrompt) {
+            this.summaryPrompt.style.display = 'flex';
+            this.summaryPrompt.querySelector('span').textContent = task.message || this.t('generating_summary');
+          }
+          return;
+        }
+
+        if (task.summary_status === 'completed') {
           this._stopSP(); this._stopSSE(); this._setLoading(false); this._hideProgress();
-          this._showResults(task.script, task.summary, task.video_title, task.translation, task.detected_language, task.summary_language);
+          this._finishSummaryLoading();
+          this._showResults(task);
+          this._switchTab('summary');
+        } else if (task.summary_status === 'error') {
+          this._stopSSE();
+          this._finishSummaryLoading();
+          this._showError(task.summary_error || task.message || 'Summary error');
+        } else if (task.status === 'completed') {
+          this._stopSP(); this._stopSSE(); this._setLoading(false); this._hideProgress();
+          this._showResults(task);
         } else if (task.status === 'error') {
           this._stopSP(); this._stopSSE(); this._setLoading(false); this._hideProgress();
           this._showError(task.error || 'Processing error');
@@ -381,9 +758,25 @@ class VideoTranscriber {
           const r = await fetch(`${this.apiBase}/task-status/${this.currentTaskId}`);
           if (r.ok) {
             const task = await r.json();
+            if (task?.summary_status === 'completed') {
+              this._finishSummaryLoading();
+              this._showResults(task);
+              this._switchTab('summary');
+              return;
+            }
+            if (task?.summary_status === 'error') {
+              this._finishSummaryLoading();
+              this._showError(task.summary_error || task.message || 'Summary error');
+              return;
+            }
+            if (task?.summary_status === 'processing') {
+              this._finishSummaryLoading();
+              this._showError(this.t('error_processing_failed') + 'Summary stream disconnected');
+              return;
+            }
             if (task?.status === 'completed') {
               this._stopSP(); this._setLoading(false); this._hideProgress();
-              this._showResults(task.script, task.summary, task.video_title, task.translation, task.detected_language, task.summary_language);
+              this._showResults(task);
               return;
             }
           }
@@ -396,6 +789,13 @@ class VideoTranscriber {
 
   _stopSSE() {
     if (this.eventSource) { this.eventSource.close(); this.eventSource = null; }
+  }
+
+  _finishSummaryLoading() {
+    if (!this.generateSummaryBtn) return;
+    this.generateSummaryBtn.disabled = false;
+    this.generateSummaryBtn.innerHTML = this._summaryButtonOriginal || `<i class="fas fa-wand-magic-sparkles"></i> <span>${this.t('generate_summary')}</span>`;
+    this._summaryButtonOriginal = null;
   }
 
   /* ── Progress ─────────────────────────────────────────── */
@@ -422,10 +822,10 @@ class VideoTranscriber {
       this._setModeBadge('subtitle');
     }
     // ── 无字幕 → 音频下载路径（慢）────────────────────────────
-    else if (m.includes('未找到字幕') || m.includes('no subtitle') || m.includes('下载视频音频') || m.includes('下载音频')) {
-      this.sp.stage = 'downloading';
+    else if (m.includes('未找到字幕') || m.includes('no subtitle') || m.includes('音频url') || m.includes('groq')) {
+      this.sp.stage = 'transcribing';
       this.sp.target = 55;
-      this._setModeBadge('whisper');
+      this._setModeBadge('groq');
     }
     // ── 通用字幕检测中 ─────────────────────────────────────────
     else if (m.includes('检测') && (m.includes('字幕') || m.includes('subtitle'))) {
@@ -435,7 +835,7 @@ class VideoTranscriber {
     // ── 其他阶段 ───────────────────────────────────────────────
     else if (m.includes('解析') || m.includes('pars'))                     { this.sp.stage = 'parsing';       this.sp.target = 60; }
     else if (m.includes('下载') || m.includes('download'))                 { this.sp.stage = 'downloading';   this.sp.target = 60; }
-    else if (m.includes('转录') || m.includes('transcrib') || m.includes('whisper')) { this.sp.stage = 'transcribing';  this.sp.target = 80; }
+    else if (m.includes('转录') || m.includes('transcrib') || m.includes('whisper') || m.includes('groq')) { this.sp.stage = 'transcribing';  this.sp.target = 80; }
     else if (m.includes('优化') || m.includes('optimiz'))                  { this.sp.stage = 'optimizing';    this.sp.target = 90; }
     else if (m.includes('摘要') || m.includes('summary'))                  { this.sp.stage = 'summarizing';   this.sp.target = 95; }
     else if (m.includes('完成') || m.includes('complet'))                  { this.sp.stage = 'completed';     this.sp.target = 100; }
@@ -450,9 +850,9 @@ class VideoTranscriber {
       this.modeBadge.className    = 'mode-badge subtitle';
       this.modeBadge.style.display = 'inline-block';
       if (this.progressFill) this.progressFill.classList.add('subtitle-mode');
-    } else if (mode === 'whisper') {
-      this.modeBadge.textContent  = this.t('mode_whisper');
-      this.modeBadge.className    = 'mode-badge whisper';
+    } else if (mode === 'whisper' || mode === 'groq') {
+      this.modeBadge.textContent  = this.t('mode_groq');
+      this.modeBadge.className    = 'mode-badge groq';
       this.modeBadge.style.display = 'inline-block';
       if (this.progressFill) this.progressFill.classList.remove('subtitle-mode');
     }
@@ -510,7 +910,8 @@ class VideoTranscriber {
     if      (m.includes('获取成功') || m.includes('subtitle found'))        label = this.t('subtitle_found');
     else if (m.includes('未找到字幕') || m.includes('no subtitle'))         label = this.t('no_subtitle');
     else if (m.includes('检测') && (m.includes('字幕') || m.includes('subtitle'))) label = this.t('detecting_subtitles');
-    // ── Audio / Whisper path ────────────────────────────────────
+    // ── Groq URL path ────────────────────────────────────────────
+    else if (m.includes('音频url') || m.includes('groq'))  label = this.t('transcribing_audio');
     else if (m.includes('下载') || m.includes('download'))  label = this.t('downloading_video');
     else if (m.includes('解析') || m.includes('pars'))      label = this.t('parsing_video');
     else if (m.includes('转录') || m.includes('transcrib')) label = this.t('transcribing_audio');
@@ -533,9 +934,26 @@ class VideoTranscriber {
   _hideProgress() { this.progressPanel.classList.remove('show'); }
 
   /* ── Results ──────────────────────────────────────────── */
-  _showResults(script, summary, videoTitle, translation, detectedLang, summaryLang) {
+  _showResults(task) {
+    this.currentTask = task || {};
+    const script = this.currentTask.transcript || this.currentTask.script;
+    const summary = this.currentTask.summary;
+    const translation = this.currentTask.translation;
+    const detectedLang = this.currentTask.detected_language;
+    const summaryLang = this.currentTask.summary_language;
+
     this.scriptContent.innerHTML  = script    ? marked.parse(script)      : '';
     this.summaryContent.innerHTML = summary   ? marked.parse(summary)     : '';
+
+    if (this.summaryPrompt) {
+      this.summaryPrompt.style.display = summary ? 'none' : 'flex';
+    }
+    if (this.dlSummary) {
+      this.dlSummary.style.display = (this.currentTask.summary_markdown_path || this.currentTask.summary_path) ? 'inline-flex' : 'none';
+    }
+    if (this.dlSummaryHtml) {
+      this.dlSummaryHtml.style.display = this.currentTask.summary_html_path ? 'inline-flex' : 'none';
+    }
 
     const showTranslation = translation && detectedLang && summaryLang && detectedLang !== summaryLang;
     if (showTranslation) {
@@ -552,12 +970,143 @@ class VideoTranscriber {
     this.resultsPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  async _generateSummary() {
+    if (!this.currentTaskId) { this._showError(this.t('error_no_download')); return; }
+    if (this.generateSummaryBtn.disabled) return;
+
+    const original = this.generateSummaryBtn.innerHTML;
+    this._summaryButtonOriginal = original;
+    let waitingForSummary = false;
+    this.generateSummaryBtn.disabled = true;
+    this.generateSummaryBtn.innerHTML = `<span class="spinner"></span> ${this.t('generating_summary_btn')}`;
+    this._hideError();
+
+    try {
+      const fd = new FormData();
+      fd.append('task_id', this.currentTaskId);
+      fd.append('summary_language', this.summaryLangSel.value);
+      fd.append('output_format', this.summaryFormatSel.value);
+      const summaryPrompt = this.summaryPromptInput.value.trim();
+      if (summaryPrompt) fd.append('summary_prompt', summaryPrompt);
+
+      const apiKey  = this.apiKeyInput.value.trim();
+      const baseUrl = this.modelBaseUrl.value.trim().replace(/\/$/, '');
+      const modelId = this.modelSelect.value;
+      const reasoningEffort = this._modelSupportsReasoning(modelId) ? this.reasoningEffortSelect.value : '';
+      if (apiKey)  fd.append('api_key', apiKey);
+      if (baseUrl) fd.append('model_base_url', baseUrl);
+      if (modelId) fd.append('model_id', modelId);
+      if (reasoningEffort) fd.append('reasoning_effort', reasoningEffort);
+
+      const resp = await fetch(`${this.apiBase}/summarize-transcript`, { method: 'POST', body: fd });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${resp.status}`);
+      }
+
+      const task = await resp.json();
+      this.currentTask = task;
+      this._showResults(task);
+      this._switchTab('summary');
+      this._saveSettings();
+
+      if (task.summary_status === 'processing') {
+        waitingForSummary = true;
+        this._startSSE();
+        return;
+      }
+    } catch (e) {
+      this._showError(this.t('error_processing_failed') + e.message);
+    } finally {
+      if (!waitingForSummary) {
+        this.generateSummaryBtn.disabled = false;
+        this.generateSummaryBtn.innerHTML = original;
+        this._summaryButtonOriginal = null;
+      }
+    }
+  }
+
   _hideResults() { this.resultsPanel.classList.remove('show'); }
 
   /* ── Tabs ─────────────────────────────────────────────── */
   _switchTab(name) {
     this.tabBtns.forEach(b  => b.classList.toggle('active',  b.dataset.tab === name));
     this.tabPanes.forEach(p => p.classList.toggle('active', p.id === `${name}Tab`));
+  }
+
+  _transcriptMarkdown() {
+    return String(this.currentTask?.transcript || this.currentTask?.script || '').trim();
+  }
+
+  _transcriptPlainText() {
+    return this._transcriptMarkdown()
+      .replace(/^#{1,6}\s+/gm, '')
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/^[ \t]*[-*_]{3,}[ \t]*$/gm, '')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+  async _copyTranscriptText(button) {
+    const text = this._transcriptPlainText();
+    if (!text) { this._showError(this.t('error_no_download')); return; }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.setAttribute('readonly', '');
+        area.style.position = 'fixed';
+        area.style.left = '-9999px';
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand('copy');
+        document.body.removeChild(area);
+      }
+      this._flashCopyButton(button);
+    } catch (e) {
+      this._showError(`Copy failed: ${e.message}`);
+    }
+  }
+
+  _flashCopyButton(button) {
+    const label = button?.querySelector('span');
+    if (!label) return;
+    const previous = label.textContent;
+    button.classList.add('copied');
+    label.textContent = this.t('copied_text');
+    setTimeout(() => {
+      button.classList.remove('copied');
+      label.textContent = previous || this.t('copy_text');
+    }, 1200);
+  }
+
+  _saveTranscript(format) {
+    const normalized = format === 'txt' ? 'txt' : 'md';
+    const content = normalized === 'txt' ? this._transcriptPlainText() : this._transcriptMarkdown();
+    if (!content) { this._showError(this.t('error_no_download')); return; }
+
+    const title = this.currentTask?.safe_title || 'video';
+    const shortId = this.currentTask?.short_id || this.currentTaskId || 'transcript';
+    const filename = `transcript_${this._safeFilename(title)}_${this._safeFilename(shortId)}.${normalized}`;
+    const type = normalized === 'txt' ? 'text/plain;charset=utf-8' : 'text/markdown;charset=utf-8';
+    const blob = new Blob([`${content}\n`], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  _safeFilename(value) {
+    return String(value || 'file').replace(/[<>:"/\\|?*\x00-\x1F]+/g, '_').replace(/\s+/g, '_').slice(0, 90);
   }
 
   /* ── Download ─────────────────────────────────────────── */
@@ -569,10 +1118,12 @@ class VideoTranscriber {
       const task = await r.json();
 
       let filename;
-      if      (type === 'script')      filename = task.script_path      ? task.script_path.split('/').pop()      : `transcript_${task.safe_title||'x'}_${task.short_id||'x'}.md`;
-      else if (type === 'summary')     filename = task.summary_path     ? task.summary_path.split('/').pop()     : `summary_${task.safe_title||'x'}_${task.short_id||'x'}.md`;
-      else if (type === 'translation') filename = task.translation_path ? task.translation_path.split('/').pop() : `translation_${task.safe_title||'x'}_${task.short_id||'x'}.md`;
+      if      (type === 'script')       filename = this._filenameFromPath(task.script_path) || `transcript_${task.safe_title||'x'}_${task.short_id||'x'}.md`;
+      else if (type === 'summary_md')   filename = this._filenameFromPath(task.summary_markdown_path || task.summary_path);
+      else if (type === 'summary_html') filename = this._filenameFromPath(task.summary_html_path);
+      else if (type === 'translation')  filename = this._filenameFromPath(task.translation_path) || `translation_${task.safe_title||'x'}_${task.short_id||'x'}.md`;
       else throw new Error('Unknown type');
+      if (!filename) throw new Error(this.t('error_no_download'));
 
       const a = document.createElement('a');
       a.href = `${this.apiBase}/download/${encodeURIComponent(filename)}`;
@@ -583,6 +1134,11 @@ class VideoTranscriber {
     } catch (e) {
       this._showError(this.t('error_download_failed') + e.message);
     }
+  }
+
+  _filenameFromPath(path) {
+    if (!path) return '';
+    return String(path).split(/[\\/]/).pop();
   }
 
   /* ── UI helpers ───────────────────────────────────────── */

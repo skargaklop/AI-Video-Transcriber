@@ -15,7 +15,6 @@ def check_dependencies():
         "fastapi": "fastapi",
         "uvicorn": "uvicorn", 
         "yt-dlp": "yt_dlp",
-        "faster-whisper": "faster_whisper",
         "openai": "openai"
     }
     
@@ -31,35 +30,17 @@ def check_dependencies():
         for package in missing_packages:
             print(f"   - {package}")
         print("\n请运行以下命令安装依赖:")
-        print("source venv/bin/activate && pip install -r requirements.txt")
+        print(".\\.venv\\Scripts\\activate && pip install -r requirements.txt")
         return False
     
     print("✅ 所有依赖已安装")
     return True
 
-def check_ffmpeg():
-    """检查FFmpeg是否安装"""
-    try:
-        subprocess.run(["ffmpeg", "-version"], 
-                      stdout=subprocess.DEVNULL, 
-                      stderr=subprocess.DEVNULL, 
-                      check=True)
-        print("✅ FFmpeg已安装")
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        print("❌ 未找到FFmpeg")
-        print("请安装FFmpeg:")
-        print("  macOS: brew install ffmpeg")
-        print("  Ubuntu: sudo apt install ffmpeg")
-        print("  Windows: 从官网下载 https://ffmpeg.org/download.html")
-        return False
-
 def setup_environment():
     """设置环境变量"""
     # 设置OpenAI配置
     if not os.getenv("OPENAI_API_KEY"):
-        print("⚠️  警告: 未设置OPENAI_API_KEY环境变量")
-        print("请设置环境变量: export OPENAI_API_KEY=your_api_key_here")
+        print("⚠️  未设置OPENAI_API_KEY。可以在浏览器设置中填写摘要API Key。")
         return False
     
     print("✅ 已设置OpenAI API Key")
@@ -67,10 +48,6 @@ def setup_environment():
     if not os.getenv("OPENAI_BASE_URL"):
         os.environ["OPENAI_BASE_URL"] = "https://oneapi.basevec.com/v1"
         print("✅ 已设置OpenAI Base URL")
-    
-    # 设置其他默认配置
-    if not os.getenv("WHISPER_MODEL_SIZE"):
-        os.environ["WHISPER_MODEL_SIZE"] = "base"
     
     print("🔑 OpenAI API已配置，摘要功能可用")
     return True
@@ -91,10 +68,6 @@ def main():
     if not check_dependencies():
         sys.exit(1)
     
-    # 检查FFmpeg
-    if not check_ffmpeg():
-        print("⚠️  FFmpeg未安装，可能影响某些视频格式的处理")
-    
     # 设置环境
     setup_environment()
     
@@ -103,7 +76,7 @@ def main():
     
     # 启动服务器
     host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", 8000))
+    port = int(os.getenv("PORT", 8001))
     
     print(f"\n🌐 启动服务器...")
     print(f"   地址: http://localhost:{port}")

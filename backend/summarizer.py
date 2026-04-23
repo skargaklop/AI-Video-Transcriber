@@ -8,7 +8,15 @@ logger = logging.getLogger(__name__)
 class Summarizer:
     """文本总结器，使用OpenAI API生成多语言摘要"""
     
-    def __init__(self, api_key: str = None, base_url: str = None, model: str = None):
+    REASONING_EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh"}
+
+    def __init__(
+        self,
+        api_key: str = None,
+        base_url: str = None,
+        model: str = None,
+        reasoning_effort: str = None,
+    ):
         """
         初始化总结器。
 
@@ -35,6 +43,7 @@ class Summarizer:
         # 允许前端指定模型，覆盖硬编码的 gpt-3.5-turbo / gpt-4o
         self.fast_model     = model or "gpt-3.5-turbo"
         self.advanced_model = model or "gpt-4o"
+        self.reasoning_effort = self._normalize_reasoning_effort(reasoning_effort)
         
         # 支持的语言映射
         self.language_map = {
@@ -46,10 +55,70 @@ class Summarizer:
             "it": "Italiano",
             "pt": "Português",
             "ru": "Русский",
+            "uk": "Українська",
             "ja": "日本語",
             "ko": "한국어",
             "ar": "العربية"
         }
+
+    def _normalize_reasoning_effort(self, reasoning_effort: Optional[str]) -> Optional[str]:
+        normalized = (reasoning_effort or "").strip().lower()
+        return normalized if normalized in self.REASONING_EFFORTS else None
+
+    def _base_model_name(self, model: str) -> str:
+        return (model or "").strip().lower().split("/")[-1]
+
+    def _supports_reasoning_effort(self, model: str) -> bool:
+        base = self._base_model_name(model)
+        return base.startswith(("gpt-5", "o1", "o3", "o4"))
+
+    def _uses_max_completion_tokens(self, model: str) -> bool:
+        return self._supports_reasoning_effort(model)
+
+    def _should_send_temperature(self, model: str) -> bool:
+        if not self._supports_reasoning_effort(model):
+            return True
+        base = self._base_model_name(model)
+        return self.reasoning_effort == "none" and base.startswith(("gpt-5.4", "gpt-5.2"))
+
+    def _chat_completion_create(
+        self,
+        model: str,
+        messages: list,
+        max_tokens: int,
+        temperature: Optional[float] = None,
+    ):
+        kwargs = {
+            "model": model,
+            "messages": messages,
+        }
+
+        if self._uses_max_completion_tokens(model):
+            kwargs["max_completion_tokens"] = max_tokens
+        else:
+            kwargs["max_tokens"] = max_tokens
+
+        if self.reasoning_effort and self._supports_reasoning_effort(model):
+            kwargs["reasoning_effort"] = self.reasoning_effort
+
+        if temperature is not None and self._should_send_temperature(model):
+            kwargs["temperature"] = temperature
+
+        while True:
+            try:
+                return self.client.chat.completions.create(**kwargs)
+            except Exception as e:
+                message = str(e).lower()
+                if "max_tokens" in message and "max_completion_tokens" in message and "max_tokens" in kwargs:
+                    kwargs["max_completion_tokens"] = kwargs.pop("max_tokens")
+                    continue
+                if "unsupported parameter" in message and "temperature" in message and "temperature" in kwargs:
+                    kwargs.pop("temperature", None)
+                    continue
+                if "unsupported parameter" in message and "reasoning_effort" in message and "reasoning_effort" in kwargs:
+                    kwargs.pop("reasoning_effort", None)
+                    continue
+                raise
     
     async def optimize_transcript(self, raw_transcript: str) -> str:
         """
@@ -967,7 +1036,20 @@ Core requirements:
         
         return '\n\n'.join(basic_paragraphs)
 
-    async def summarize(self, transcript: str, target_language: str = "zh", video_title: str = None) -> str:
+    def _format_custom_summary_prompt(self, custom_prompt: str = "", language_name: str = "") -> str:
+        custom_prompt = (custom_prompt or "").strip()
+        parts = []
+        if custom_prompt:
+            parts.append(
+                "Additional user instructions for this summary. Follow them unless they conflict "
+                "with the required output language, factual accuracy, or the source transcript:\n"
+                f"{custom_prompt}"
+            )
+        if language_name:
+            parts.append(f"Summary Language: {language_name}")
+        return "\n\n" + "\n\n".join(parts) if parts else ""
+
+    async def summarize(self, transcript: str, target_language: str = "zh", video_title: str = None, custom_prompt: str = "") -> str:
         """
         生成视频转录的摘要
         
@@ -989,17 +1071,17 @@ Core requirements:
             
             if estimated_tokens <= max_summarize_tokens:
                 # 短文本直接摘要
-                return await self._summarize_single_text(transcript, target_language, video_title)
+                return await self._summarize_single_text(transcript, target_language, video_title, custom_prompt)
             else:
                 # 长文本分块摘要
                 logger.info(f"文本较长({estimated_tokens} tokens)，启用分块摘要")
-                return await self._summarize_with_chunks(transcript, target_language, video_title, max_summarize_tokens)
+                return await self._summarize_with_chunks(transcript, target_language, video_title, max_summarize_tokens, custom_prompt)
             
         except Exception as e:
             logger.error(f"生成摘要失败: {str(e)}")
-            return self._generate_fallback_summary(transcript, target_language, video_title)
+            raise
 
-    async def _summarize_single_text(self, transcript: str, target_language: str, video_title: str = None) -> str:
+    async def _summarize_single_text(self, transcript: str, target_language: str, video_title: str = None, custom_prompt: str = "") -> str:
         """
         对单个文本进行摘要
         """
@@ -1007,6 +1089,8 @@ Core requirements:
         language_name = self.language_map.get(target_language, "中文（简体）")
         
         # 构建英文提示词，适用于所有目标语言
+        custom_instruction = self._format_custom_summary_prompt(custom_prompt, language_name)
+
         system_prompt = f"""You are a professional content analyst. Please generate a comprehensive, well-structured summary in {language_name} for the following text.
 
 Summary Requirements:
@@ -1037,12 +1121,12 @@ Requirements:
 - Cover all key ideas and arguments, preserving important examples and data
 - Ensure balanced coverage of both early and later content
 - Use restrained but comprehensive language
-- Organize content logically with proper paragraph breaks"""
+- Organize content logically with proper paragraph breaks{custom_instruction}"""
 
         logger.info(f"正在生成{language_name}摘要...")
         
         # 调用OpenAI API
-        response = self.client.chat.completions.create(
+        response = self._chat_completion_create(
             model=self.advanced_model,
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -1056,13 +1140,14 @@ Requirements:
 
         return self._format_summary_with_meta(summary, target_language, video_title)
 
-    async def _summarize_with_chunks(self, transcript: str, target_language: str, video_title: str, max_tokens: int) -> str:
+    async def _summarize_with_chunks(self, transcript: str, target_language: str, video_title: str, max_tokens: int, custom_prompt: str = "") -> str:
         """
         分块摘要长文本
         """
         language_name = self.language_map.get(target_language, "中文（简体）")
 
         # 使用JS策略：按字符进行智能分块（段落>句子）
+        custom_instruction = self._format_custom_summary_prompt(custom_prompt, language_name)
         chunks = self._smart_chunk_text(transcript, max_chars_per_chunk=4000)
         logger.info(f"分割为 {len(chunks)} 个块进行摘要")
         
@@ -1076,16 +1161,16 @@ Requirements:
 
 This is part {i+1} of {len(chunks)} of the complete content (Part {i+1}/{len(chunks)}).
 
-Output preferences: Focus on natural paragraphs, use minimal bullet points if necessary; highlight new information and its relationship to the main narrative; avoid vague repetition and formatted headings; moderate length (suggested 120-220 words)."""
+Output preferences: Focus on natural paragraphs, use minimal bullet points if necessary; highlight new information and its relationship to the main narrative; avoid vague repetition and formatted headings; moderate length (suggested 120-220 words).{custom_instruction}"""
 
             user_prompt = f"""[Part {i+1}/{len(chunks)}] Summarize the key points of the following text in {language_name} (natural paragraphs preferred, minimal bullet points, 120-220 words):
 
 {chunk}
 
-Avoid using any subheadings or decorative separators, output content only."""
+Avoid using any subheadings or decorative separators, output content only.{custom_instruction}"""
 
             try:
-                response = self.client.chat.completions.create(
+                response = self._chat_completion_create(
                     model=self.advanced_model,
                     messages=[
                         {"role": "system", "content": system_prompt},
@@ -1100,18 +1185,28 @@ Avoid using any subheadings or decorative separators, output content only."""
                 
             except Exception as e:
                 logger.error(f"摘要第 {i+1} 块失败: {e}")
-                # 失败时生成简单摘要
-                simple_summary = f"第{i+1}部分内容概述：" + chunk[:200] + "..."
-                chunk_summaries.append(simple_summary)
+                raise
         
         # 合并所有局部摘要（带编号），如分块较多则分层整合（不引入小标题）
         combined_summaries = "\n\n".join([f"[Part {idx+1}]\n" + s for idx, s in enumerate(chunk_summaries)])
 
         logger.info("正在整合最终摘要...")
         if len(chunk_summaries) > 10:
-            final_summary = await self._integrate_hierarchical_summaries(chunk_summaries, target_language)
+            grouped_summaries = []
+            for group_start in range(0, len(chunk_summaries), 10):
+                group = chunk_summaries[group_start:group_start + 10]
+                group_text = "\n\n".join(
+                    [f"[Part {group_start + idx + 1}]\n" + s for idx, s in enumerate(group)]
+                )
+                grouped_summaries.append(
+                    await self._integrate_chunk_summaries(group_text, target_language, custom_prompt)
+                )
+            grouped_text = "\n\n".join(
+                [f"[Group {idx + 1}]\n" + s for idx, s in enumerate(grouped_summaries)]
+            )
+            final_summary = await self._integrate_chunk_summaries(grouped_text, target_language, custom_prompt)
         else:
-            final_summary = await self._integrate_chunk_summaries(combined_summaries, target_language)
+            final_summary = await self._integrate_chunk_summaries(combined_summaries, target_language, custom_prompt)
 
         return self._format_summary_with_meta(final_summary, target_language, video_title)
 
@@ -1150,12 +1245,14 @@ Avoid using any subheadings or decorative separators, output content only."""
                     final_chunks.append(scur.strip())
         return final_chunks
 
-    async def _integrate_chunk_summaries(self, combined_summaries: str, target_language: str) -> str:
+    async def _integrate_chunk_summaries(self, combined_summaries: str, target_language: str, custom_prompt: str = "") -> str:
         """
         整合分块摘要为最终连贯摘要
         """
         language_name = self.language_map.get(target_language, "中文（简体）")
         
+        custom_instruction = self._format_custom_summary_prompt(custom_prompt, language_name)
+
         try:
             system_prompt = f"""You are a content integration expert. Please integrate multiple segmented summaries into a complete, coherent summary in {language_name}.
 
@@ -1166,7 +1263,7 @@ Integration Requirements:
 4. Ensure output is in Markdown format with double line breaks between paragraphs
 5. Use concise and clear language
 6. Form a complete content summary
-7. Cover all parts comprehensively without omission"""
+7. Cover all parts comprehensively without omission{custom_instruction}"""
 
             user_prompt = f"""Please integrate the following segmented summaries into a complete, coherent summary in {language_name}:
 
@@ -1178,9 +1275,9 @@ Requirements:
 - Each paragraph must be separated by double line breaks
 - Ensure output is in Markdown format with double line breaks between paragraphs
 - Use concise and clear language
-- Form a complete content summary"""
+- Form a complete content summary{custom_instruction}"""
 
-            response = self.client.chat.completions.create(
+            response = self._chat_completion_create(
                 model=self.advanced_model,
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -1194,8 +1291,7 @@ Requirements:
             
         except Exception as e:
             logger.error(f"整合摘要失败: {e}")
-            # 失败时直接合并
-            return combined_summaries
+            raise
 
     def _format_summary_with_meta(self, summary: str, target_language: str, video_title: str = None) -> str:
         """
@@ -1364,6 +1460,7 @@ Requirements:
             "it": "Italiano",
             "pt": "Português",
             "ru": "Русский",
+            "uk": "Українська",
             "ar": "العربية"
         }
         return language_instructions.get(lang_code, "English")
@@ -1419,6 +1516,10 @@ Requirements:
             "ru": {
                 "language_label": "Язык резюме",
                 "disclaimer": "Это резюме автоматически генерируется ИИ, только для справки"
+            },
+            "uk": {
+                "language_label": "Мова зведення",
+                "disclaimer": "Це зведення автоматично створене ШІ лише для довідки"
             },
             "ar": {
                 "language_label": "لغة الملخص",
