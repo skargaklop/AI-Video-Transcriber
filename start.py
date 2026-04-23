@@ -10,29 +10,28 @@ from pathlib import Path
 
 def check_dependencies():
     """检查依赖是否安装"""
-    import sys
     required_packages = {
         "fastapi": "fastapi",
-        "uvicorn": "uvicorn", 
+        "uvicorn": "uvicorn",
         "yt-dlp": "yt_dlp",
         "openai": "openai"
     }
-    
+
     missing_packages = []
     for display_name, import_name in required_packages.items():
         try:
             __import__(import_name)
         except ImportError:
             missing_packages.append(display_name)
-    
+
     if missing_packages:
         print("❌ 缺少以下依赖包:")
         for package in missing_packages:
             print(f"   - {package}")
         print("\n请运行以下命令安装依赖:")
-        print(".\\.venv\\Scripts\\activate && pip install -r requirements.txt")
+        print("pip install -r requirements.txt")
         return False
-    
+
     print("✅ 所有依赖已安装")
     return True
 

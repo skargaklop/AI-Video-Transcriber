@@ -9,22 +9,22 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.2/marked.min.js"></script>
   <style>
     :root {
-      --bg:           #191F2F;
-      --surface:      #F4F2EB;
-      --surface-2:    #ECEFF7;
-      --surface-3:    #DEE4F2;
-      --border:       #9EABCC;
-      --border-light: #B8C2DC;
-      --accent:       #9EABCC;
-      --accent-h:     #B8C2DC;
-      --accent-dim:   #6F7EA4;
-      --accent-text:  #9EABCC;
-      --text:         #F4F2EB;
-      --text-on-surface: #191F2F;
-      --text-muted:   #9EABCC;
-      --text-dim:     #707C9F;
-      --success:      #6FAE84;
-      --error:        #E07878;
+      --bg:           #2F5759;
+      --surface:      #d4ede3;
+      --surface-2:    #bfe3d4;
+      --surface-3:    #417A76;
+      --border:       #417A76;
+      --border-light: #5a9490;
+      --accent:       #EDBE6B;
+      --accent-h:     #f5cf89;
+      --accent-dim:   #A57839;
+      --accent-text:  #EDBE6B;
+      --text:         #e8f5f0;
+      --text-on-surface: #1e3c3a;
+      --text-muted:   #7CCEAD;
+      --text-dim:     #5a9490;
+      --success:      #7CCEAD;
+      --error:        #e07878;
       --r:            12px;
       --r-sm:         8px;
     }
@@ -112,7 +112,7 @@
     }
     .lang-option.active {
       color: var(--text-on-surface);
-      background: rgba(158,171,204,.28);
+      background: rgba(124,206,173,.2);
     }
     .lang-option.active::after {
       content: "";
@@ -190,7 +190,7 @@
     .url-input::placeholder { color: var(--text-dim); }
     .url-input:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(158,171,204,.22);
+      box-shadow: 0 0 0 3px rgba(237,190,107,.22);
     }
 
     .btn-go {
@@ -267,7 +267,7 @@
     }
     .inline-lang-select:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(158,171,204,.22);
+      box-shadow: 0 0 0 3px rgba(237,190,107,.22);
     }
     .inline-lang-select option { background: var(--surface-2); }
 
@@ -334,7 +334,7 @@
     .s-input::placeholder { color: var(--text-dim); }
     .s-input:focus, .s-select:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(158,171,204,.22);
+      box-shadow: 0 0 0 3px rgba(237,190,107,.22);
     }
 
     .check-row {
@@ -450,8 +450,8 @@
     }
     .mode-badge.whisper {
       color: var(--accent-dim);
-      border-color: rgba(158,171,204,.45);
-      background: rgba(158,171,204,.14);
+      border-color: rgba(237,190,107,.45);
+      background: rgba(237,190,107,.1);
     }
     .mode-badge.groq {
       color: #74b6d8;
@@ -622,8 +622,8 @@
 
     .md-content a {
       color: var(--accent-text);
-      background: rgba(158,171,204,.16);
-      border: 1px solid rgba(158,171,204,.38);
+      background: rgba(237,190,107,.15);
+      border: 1px solid rgba(237,190,107,.32);
       border-radius: 4px;
       padding: 1px 5px;
       text-decoration: none;

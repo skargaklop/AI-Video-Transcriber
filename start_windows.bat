@@ -2,17 +2,14 @@
 setlocal
 cd /d "%~dp0"
 
-if not exist ".venv\Scripts\python.exe" (
-  echo Creating virtual environment...
-  where py >nul 2>nul
-  if not errorlevel 1 (
-    py -3 -m venv .venv
-  ) else (
-    python -m venv .venv
-  )
+echo Installing / updating dependencies...
+python -m pip install --upgrade -r requirements.txt
+if errorlevel 1 (
+  echo.
+  echo ERROR: pip install failed. Make sure Python is installed and on your PATH.
+  pause
+  exit /b 1
 )
 
-call ".venv\Scripts\activate.bat"
-python -m pip install -r requirements.txt
 set PORT=8001
 python start.py --prod
