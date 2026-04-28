@@ -43,13 +43,12 @@ def _backend_install_constraints(backend: str) -> dict[str, Any]:
     major, minor = _python_version_tuple()
     if sys.platform.startswith("win") and (major, minor) >= (3, 13):
         return {
-            "auto_install_supported": False,
+            "auto_install_supported": True,
             "warning_code": "parakeet_windows_py313_requires_build_tools",
             "message": (
-                "Automatic Parakeet dependency installation is not supported on Windows with Python 3.13 in this app runtime. "
-                "The NeMo ASR dependency chain pulls editdistance, which has no prebuilt CPython 3.13 Windows wheel, "
-                "so pip falls back to a source build that requires Microsoft C++ Build Tools. "
-                "Use the Whisper backend, install Microsoft C++ Build Tools and the Parakeet dependencies manually, "
+                "Parakeet on Windows with Python 3.13 may require Microsoft C++ Build Tools during dependency installation. "
+                "The NeMo ASR dependency chain pulls editdistance, which may fall back to a local source build on this runtime. "
+                "If installation fails, ensure Build Tools are installed with the workload 'Desktop development with C++', "
                 "or run Parakeet from a Python 3.12 environment."
             ),
         }
@@ -81,8 +80,16 @@ def install_backend_dependencies(backend: str) -> None:
                 text=True,
             )
         except subprocess.CalledProcessError as exc:
+            stderr = exc.stderr or ""
+            if "Microsoft Visual C++ 14.0 or greater is required" in stderr:
+                raise LocalTranscriptionError(
+                    "Failed to install Parakeet dependencies: Microsoft C++ Build Tools are required for this build step. "
+                    "Open the Build Tools installer and choose workload 'Desktop development with C++', then retry. "
+                    "If you already installed Build Tools, restart the app shell and try again. "
+                    "You can also run Parakeet from a Python 3.12 environment."
+                ) from exc
             raise LocalTranscriptionError(
-                f"Failed to install dependencies for local backend '{normalized_backend}': {exc.stderr or exc}"
+                f"Failed to install dependencies for local backend '{normalized_backend}': {stderr or exc}"
             ) from exc
     importlib.invalidate_caches()
 

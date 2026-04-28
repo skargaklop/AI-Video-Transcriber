@@ -1,4 +1,5 @@
 import asyncio
+import subprocess
 import shutil
 import sys
 import unittest
@@ -797,7 +798,7 @@ class PlanContractTests(unittest.TestCase):
         self.assertTrue(caps["backends"]["whisper"]["auto_install"])
         self.assertTrue(caps["backends"]["parakeet"]["auto_install"])
 
-    def test_local_model_capabilities_report_parakeet_auto_install_unsupported_on_windows_py313(self):
+    def test_local_model_capabilities_report_parakeet_build_tools_warning_on_windows_py313(self):
         import importlib.util
 
         original_find_spec = importlib.util.find_spec
@@ -814,11 +815,12 @@ class PlanContractTests(unittest.TestCase):
 
         parakeet_caps = caps["backends"]["parakeet"]
         self.assertFalse(parakeet_caps["available"])
-        self.assertFalse(parakeet_caps["auto_install"])
+        self.assertTrue(parakeet_caps["auto_install"])
         self.assertEqual(
             parakeet_caps["warning_code"],
             "parakeet_windows_py313_requires_build_tools",
         )
+        self.assertIn("Desktop development with C++", parakeet_caps["warning"])
 
 
 class WindowsLauncherTests(unittest.TestCase):
@@ -834,6 +836,13 @@ class WindowsLauncherTests(unittest.TestCase):
         self.assertIn('if /I "%~1"=="--venv"', launcher)
         self.assertIn('if /I "%VENV_MODE%"=="on"', launcher)
         self.assertIn('if /I "%VENV_MODE%"=="off"', launcher)
+
+    def test_start_script_uses_english_console_messages(self):
+        start_script = (PROJECT_ROOT / "start.py").read_text(encoding="utf-8")
+
+        self.assertIn("AI Video Transcriber startup check", start_script)
+        self.assertIn("Development mode - hot reload enabled", start_script)
+        self.assertNotIn("开发模式", start_script)
 
 
 class FrontendContractTests(unittest.TestCase):
@@ -902,13 +911,35 @@ class LocalTranscriptionHelpersTests(unittest.TestCase):
         self.assertEqual(transcriber.model_id, custom_model)
         self.assertEqual(loaded_models, [custom_model])
 
-    def test_install_backend_dependencies_rejects_parakeet_auto_install_on_windows_py313(self):
+    def test_install_backend_dependencies_attempts_parakeet_install_on_windows_py313(self):
+        calls = []
+
+        def fake_run(cmd, check, capture_output, text):
+            calls.append(cmd)
+            return None
+
         with patch.object(local_transcription.sys, "platform", "win32"):
             with patch.object(local_transcription.sys, "version_info", (3, 13, 0)):
-                with self.assertRaises(local_transcription.LocalTranscriptionError) as ctx:
+                with patch.object(local_transcription.subprocess, "run", side_effect=fake_run):
                     local_transcription.install_backend_dependencies("parakeet")
 
-        self.assertIn("Python 3.13", str(ctx.exception))
+        self.assertTrue(calls)
+        self.assertIn("nemo_toolkit[asr]>=2.0.0", calls[0])
+
+    def test_install_backend_dependencies_surfaces_build_tools_guidance(self):
+        failure = subprocess.CalledProcessError(
+            1,
+            [sys.executable, "-m", "pip", "install", "nemo_toolkit[asr]>=2.0.0"],
+            stderr="error: Microsoft Visual C++ 14.0 or greater is required.",
+        )
+
+        with patch.object(local_transcription.sys, "platform", "win32"):
+            with patch.object(local_transcription.sys, "version_info", (3, 13, 0)):
+                with patch.object(local_transcription.subprocess, "run", side_effect=failure):
+                    with self.assertRaises(local_transcription.LocalTranscriptionError) as ctx:
+                        local_transcription.install_backend_dependencies("parakeet")
+
+        self.assertIn("Desktop development with C++", str(ctx.exception))
         self.assertIn("Microsoft C++ Build Tools", str(ctx.exception))
 
 

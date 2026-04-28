@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
-"""
-AI视频转录器启动脚本
-"""
+"""Startup script for AI Video Transcriber."""
 
 import os
-import sys
 import subprocess
+import sys
 import threading
 import time
-import webbrowser
 import urllib.request
+import webbrowser
 from pathlib import Path
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -24,18 +22,19 @@ def open_browser(url: str, timeout: int = 15) -> None:
     while time.time() < deadline:
         try:
             urllib.request.urlopen(url, timeout=1)
-            break  # server responded
+            break
         except Exception:
             time.sleep(0.5)
     webbrowser.open(url)
 
-def check_dependencies():
-    """检查依赖是否安装"""
+
+def check_dependencies() -> bool:
+    """Check whether required Python packages are installed."""
     required_packages = {
         "fastapi": "fastapi",
         "uvicorn": "uvicorn",
         "yt-dlp": "yt_dlp",
-        "openai": "openai"
+        "openai": "openai",
     }
 
     missing_packages = []
@@ -46,18 +45,18 @@ def check_dependencies():
             missing_packages.append(display_name)
 
     if missing_packages:
-        print("❌ 缺少以下依赖包:")
+        print("Missing required packages:")
         for package in missing_packages:
             print(f"   - {package}")
-        print("\n请运行以下命令安装依赖:")
+        print("\nInstall them with:")
         print("pip install -r requirements.txt")
         return False
 
-    print("✅ 所有依赖已安装")
+    print("All required packages are installed.")
     return True
 
 
-def report_optional_local_backends():
+def report_optional_local_backends() -> None:
     """Report optional local transcription backend availability."""
     optional_packages = {
         "faster-whisper (Whisper local backend)": "faster_whisper",
@@ -74,90 +73,89 @@ def report_optional_local_backends():
             missing.append(display_name)
 
     if available:
-        print("ℹ️  Optional local backends available:")
+        print("Optional local backends available:")
         for package in available:
             print(f"   - {package}")
     if missing:
-        print("ℹ️  Optional local backends not installed:")
+        print("Optional local backends not installed:")
         for package in missing:
             print(f"   - {package}")
         print("   The app will still start. These backends remain unavailable until installed.")
 
-def setup_environment():
-    """设置环境变量"""
-    # 设置OpenAI配置
+
+def setup_environment() -> bool:
+    """Set optional server-side environment defaults."""
     if not os.getenv("OPENAI_API_KEY"):
-        print("⚠️  未设置OPENAI_API_KEY。可以在浏览器设置中填写摘要API Key。")
+        print("OPENAI_API_KEY is not set. You can still enter a summary API key in the browser UI.")
         return False
-    
-    print("✅ 已设置OpenAI API Key")
-    
+
+    print("OpenAI API key is set.")
+
     if not os.getenv("OPENAI_BASE_URL"):
         os.environ["OPENAI_BASE_URL"] = "https://oneapi.basevec.com/v1"
-        print("✅ 已设置OpenAI Base URL")
-    
-    print("🔑 OpenAI API已配置，摘要功能可用")
+        print("OpenAI Base URL was not set. Applied default server-side base URL.")
+
+    print("OpenAI summary provider is configured for server-side defaults.")
     return True
 
-def main():
-    """主函数"""
-    # 检查是否使用生产模式（禁用热重载）
+
+def main() -> None:
+    """Start the API server."""
     production_mode = "--prod" in sys.argv or os.getenv("PRODUCTION_MODE") == "true"
-    
-    print("🚀 AI视频转录器启动检查")
+
+    print("AI Video Transcriber startup check")
     if production_mode:
-        print("🔒 生产模式 - 热重载已禁用")
+        print("Production mode - hot reload disabled")
     else:
-        print("🔧 开发模式 - 热重载已启用")
+        print("Development mode - hot reload enabled")
     print("=" * 50)
-    
-    # 检查依赖
+
     if not check_dependencies():
         sys.exit(1)
     report_optional_local_backends()
-    
-    # 设置环境
     setup_environment()
-    
-    print("\n🎉 启动检查完成!")
+
+    print("\nStartup checks complete.")
     print("=" * 50)
-    
-    # 启动服务器
+
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", 8001))
-    
-    print(f"\n🌐 启动服务器...")
-    print(f"   地址: http://localhost:{port}")
-    print(f"   按 Ctrl+C 停止服务")
+
+    print("\nStarting server...")
+    print(f"   URL: http://localhost:{port}")
+    print("   Press Ctrl+C to stop the server")
     print("=" * 50)
-    
+
     try:
-        # 切换到backend目录并启动服务
         backend_dir = Path(__file__).parent / "backend"
         os.chdir(backend_dir)
-        
+
         cmd = [
-            sys.executable, "-m", "uvicorn", "main:app",
-            "--host", host,
-            "--port", str(port)
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "main:app",
+            "--host",
+            host,
+            "--port",
+            str(port),
         ]
-        
-        # 只在开发模式下启用热重载
+
         if not production_mode:
             cmd.append("--reload")
-        
-        # Open browser automatically once the server is ready
+
         url = f"http://localhost:{port}"
         t = threading.Thread(target=open_browser, args=(url,), daemon=True)
         t.start()
 
         subprocess.run(cmd)
-        
+
     except KeyboardInterrupt:
-        print("\n\n👋 服务已停止")
-    except Exception as e:
-        print(f"\n❌ 启动失败: {e}")
+        print("\n\nServer stopped.")
+    except Exception as exc:
+        print(f"\nStartup failed: {exc}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
