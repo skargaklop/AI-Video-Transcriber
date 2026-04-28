@@ -836,6 +836,20 @@ class WindowsLauncherTests(unittest.TestCase):
         self.assertIn('if /I "%VENV_MODE%"=="off"', launcher)
 
 
+class FrontendContractTests(unittest.TestCase):
+    def test_frontend_includes_direct_build_tools_download_link(self):
+        app_js = (PROJECT_ROOT / "static" / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn("https://aka.ms/vs/17/release/vs_BuildTools.exe", app_js)
+        self.assertIn("download_build_tools", app_js)
+        self.assertIn("Desktop development with C++", app_js)
+
+    def test_switch_lang_rerenders_local_capabilities_message(self):
+        app_js = (PROJECT_ROOT / "static" / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn("this._renderLocalCapabilities();", app_js)
+
+
 class LocalTranscriptionHelpersTests(unittest.TestCase):
     def test_prepare_local_transcriber_uses_selected_model_and_preloads_it(self):
         loaded_models = []

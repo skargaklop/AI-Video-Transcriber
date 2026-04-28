@@ -75,3 +75,7 @@ http://localhost:8001
 - 本分支不依赖本地 Faster-Whisper。
 - 本分支不要求 FFmpeg。
 - Groq 回退依赖临时音频 URL；如果 URL 过期或 Groq 无法读取，请重新点击转录生成新的 URL。
+- 在 Windows + Python 3.13 上，Parakeet 的自动依赖安装可能失败，因为 NeMo ASR 依赖链可能触发本地 C++ 编译。
+- 如果出现这种情况，请安装 Microsoft C++ Build Tools： [vs_BuildTools.exe](https://aka.ms/vs/17/release/vs_BuildTools.exe)
+- 在安装器里选择工作负载 `Desktop development with C++`
+- 保持默认的 MSVC 编译器和 Windows SDK 组件启用，然后重新尝试 Parakeet。

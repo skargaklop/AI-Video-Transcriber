@@ -175,6 +175,13 @@ AI-Video-Transcriber/
 - The Windows launcher lets you choose whether dependencies are installed into `.venv` or your current Python environment.
 - Whisper can run on CPU or CUDA.
 - Parakeet can also run on CPU, but it may be slow; the UI surfaces that warning.
+- On Windows with Python 3.13, automatic Parakeet dependency installation can fail because the NeMo ASR dependency chain may need a local C++ build step.
+- If that happens, install Microsoft C++ Build Tools with this bootstrapper: [vs_BuildTools.exe](https://aka.ms/vs/17/release/vs_BuildTools.exe)
+- In the installer, choose the workload `Desktop development with C++`.
+- Keep the default C++ compiler and Windows SDK selections enabled, especially:
+  - `MSVC v143 - VS 2022 C++ x64/x86 build tools` (or the latest MSVC x64/x86 build tools entry shown)
+  - a current `Windows 10/11 SDK`
+- You do not need the full Visual Studio IDE for this app.
 - Missing local backend packages are installed automatically when you actually run the selected local backend.
 - The exact selected local model is downloaded automatically on first use and then reused from cache.
 - Local custom models are passed through as-is. If a backend/model does not expose timestamps, transcription still succeeds and the app returns transcript text without timecodes.
@@ -205,6 +212,13 @@ A: In most cases this is an environment configuration issue rather than a code b
   - or manual setup with `.\.venv\Scripts\activate` followed by `pip install -r requirements.txt`
 - Configure your API key in the **AI Settings** panel, or set `OPENAI_API_KEY` as an env var
 - If port 8001 is occupied, stop the old process or change `PORT`
+
+### Q: What exactly do I choose in Microsoft C++ Build Tools for Parakeet?
+A: If Parakeet tells you Microsoft C++ Build Tools are required:
+- Download the installer: [vs_BuildTools.exe](https://aka.ms/vs/17/release/vs_BuildTools.exe)
+- In **Workloads**, select `Desktop development with C++`
+- Keep the default MSVC compiler and Windows SDK components enabled
+- Install, then retry Parakeet transcription
 
 ### Q: How to handle long videos?
 A: The app can try subtitles first, then use Groq or a local model based on your settings. If Groq is selected, Groq file/URL limits and YouTube URL expiry can still apply; local fallback can help when the failure is transient and eligible.

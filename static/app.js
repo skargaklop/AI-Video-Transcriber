@@ -2,6 +2,8 @@
    AI Video Transcriber · app.js
    ──────────────────────────────────────────────────────────── */
 
+const MSVC_BUILD_TOOLS_URL = 'https://aka.ms/vs/17/release/vs_BuildTools.exe';
+
 class VideoTranscriber {
   constructor() {
     this.currentTaskId  = null;
@@ -357,8 +359,9 @@ class VideoTranscriber {
       local_backend_auto_install: 'Missing backend packages and the selected model will be installed automatically on first use.',
       local_capabilities_error: 'Failed to load local model capabilities.',
       parakeet_cpu_warning: 'Parakeet may be slow on CPU.',
-      parakeet_windows_py313_requires_build_tools: 'Automatic Parakeet install is unavailable on Windows with Python 3.13 in this runtime. It requires Microsoft C++ Build Tools or a Python 3.12 environment.',
+      parakeet_windows_py313_requires_build_tools: 'Automatic Parakeet install is unavailable on Windows with Python 3.13 in this runtime. It requires Microsoft C++ Build Tools or a Python 3.12 environment. In the installer, choose workload: Desktop development with C++.',
       stage_parakeet_windows_py313_requires_build_tools: 'Microsoft C++ Build Tools are required for Parakeet on Windows with Python 3.13',
+      download_build_tools: 'Download Build Tools',
       local_api_transcription: 'Local API Transcription',
       local_api_base_url: 'Local API Base URL',
       local_api_base_url_placeholder: 'http://127.0.0.1:11434/v1',
@@ -423,8 +426,9 @@ class VideoTranscriber {
       local_backend_auto_install: 'Недостающие пакеты движка и выбранная модель будут установлены автоматически при первом запуске.',
       local_capabilities_error: 'Не удалось загрузить возможности локальных моделей.',
       parakeet_cpu_warning: 'Parakeet может работать медленно на CPU.',
-      parakeet_windows_py313_requires_build_tools: 'Автоматическая установка Parakeet недоступна на Windows с Python 3.13 в этом runtime. Нужны Microsoft C++ Build Tools или окружение Python 3.12.',
+      parakeet_windows_py313_requires_build_tools: 'Автоматическая установка Parakeet недоступна на Windows с Python 3.13 в этом runtime. Нужны Microsoft C++ Build Tools или окружение Python 3.12. В установщике выберите workload: Desktop development with C++.',
       stage_parakeet_windows_py313_requires_build_tools: 'Для Parakeet на Windows с Python 3.13 нужны Microsoft C++ Build Tools',
+      download_build_tools: 'Скачать Build Tools',
       local_api_transcription: 'Транскрибация через локальный API',
       local_api_base_url: 'Base URL локального API',
       local_api_base_url_placeholder: 'http://127.0.0.1:11434/v1',
@@ -489,8 +493,9 @@ class VideoTranscriber {
       local_backend_auto_install: 'Відсутні пакети рушія та вибрана модель будуть встановлені автоматично під час першого запуску.',
       local_capabilities_error: 'Не вдалося завантажити можливості локальних моделей.',
       parakeet_cpu_warning: 'Parakeet може працювати повільно на CPU.',
-      parakeet_windows_py313_requires_build_tools: 'Автоматичне встановлення Parakeet недоступне на Windows з Python 3.13 у цьому runtime. Потрібні Microsoft C++ Build Tools або середовище Python 3.12.',
+      parakeet_windows_py313_requires_build_tools: 'Автоматичне встановлення Parakeet недоступне на Windows з Python 3.13 у цьому runtime. Потрібні Microsoft C++ Build Tools або середовище Python 3.12. В інсталяторі виберіть workload: Desktop development with C++.',
       stage_parakeet_windows_py313_requires_build_tools: 'Для Parakeet на Windows з Python 3.13 потрібні Microsoft C++ Build Tools',
+      download_build_tools: 'Завантажити Build Tools',
       local_api_transcription: 'Транскрибування через локальний API',
       local_api_base_url: 'Base URL локального API',
       local_api_base_url_placeholder: 'http://127.0.0.1:11434/v1',
@@ -770,6 +775,7 @@ class VideoTranscriber {
       const v = this.t(el.dataset.i18nPlaceholder);
       if (typeof v === 'string') el.placeholder = v;
     });
+    this._renderLocalCapabilities();
     this._syncLangMenu();
   }
 
@@ -972,11 +978,31 @@ class VideoTranscriber {
       parts.push(this.t('parakeet_cpu_warning'));
     } else if (caps.warning_code === 'parakeet_windows_py313_requires_build_tools') {
       parts.push(this.t('parakeet_windows_py313_requires_build_tools'));
+      parts.push({
+        type: 'link',
+        href: MSVC_BUILD_TOOLS_URL,
+        text: this.t('download_build_tools'),
+      });
     } else if (caps.warning) {
       parts.push(caps.warning);
     }
     this.localCapabilitiesDetail.className = `status-note${caps.available ? (caps.warning ? ' warn' : '') : ' error'}`;
-    this.localCapabilitiesDetail.textContent = parts.join(' ');
+    this.localCapabilitiesDetail.replaceChildren();
+    parts.forEach((part, index) => {
+      if (index > 0) this.localCapabilitiesDetail.append(document.createTextNode(' '));
+      if (typeof part === 'string') {
+        this.localCapabilitiesDetail.append(document.createTextNode(part));
+        return;
+      }
+      if (part?.type === 'link') {
+        const link = document.createElement('a');
+        link.href = part.href;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = part.text;
+        this.localCapabilitiesDetail.append(link);
+      }
+    });
   }
 
   _syncProviderSettings() {
