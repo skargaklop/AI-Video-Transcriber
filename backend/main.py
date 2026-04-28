@@ -122,6 +122,16 @@ def _sanitize_title_for_filename(title: str) -> str:
     # 最长限制，避免过长文件名问题
     return safe[:80] or "untitled"
 
+def _markdown_to_plain_text(markdown: str) -> str:
+    text = str(markdown or "").strip()
+    text = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE)
+    text = re.sub(r"\*\*([^*]+)\*\*", r"\1", text)
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+    text = re.sub(r"^[ \t]*[-*_]{3,}[ \t]*$", "", text, flags=re.MULTILINE)
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
 def _extract_detected_language(transcript_text: str, fallback: str = "") -> str:
     if not transcript_text:
         return fallback or ""
@@ -250,6 +260,7 @@ async def process_video(
             "summary_path": None,
             "summary_markdown_path": None,
             "summary_html_path": None,
+            "summary_text_path": None,
             "error": None,
             "url": url  # 保存URL用于去重
         }
@@ -479,6 +490,7 @@ async def process_video_task(
             "summary_path": None,
             "summary_markdown_path": None,
             "summary_html_path": None,
+            "summary_text_path": None,
             "summary_status": "idle",
             "summary_progress": 0,
             "short_id": short_id,
@@ -557,8 +569,8 @@ async def summarize_transcript(
         raise HTTPException(status_code=400, detail="该任务还没有可摘要的转录文本")
 
     normalized_format = (output_format or "markdown").strip().lower()
-    if normalized_format not in {"markdown", "html", "both"}:
-        raise HTTPException(status_code=400, detail="output_format must be markdown, html, or both")
+    if normalized_format not in {"markdown", "html", "txt", "both"}:
+        raise HTTPException(status_code=400, detail="output_format must be markdown, html, txt, or both")
 
     normalized_summary_prompt = summary_prompt.strip() if isinstance(summary_prompt, str) else ""
     if len(normalized_summary_prompt) > 4000:
@@ -669,12 +681,19 @@ async def summarize_transcript_task(
 
         summary_markdown_path = None
         summary_html_path = None
+        summary_text_path = None
 
         if output_format in {"markdown", "both"}:
             summary_filename = f"summary_{safe_title}_{short_id}.md"
             summary_markdown_path = TEMP_DIR / summary_filename
             async with aiofiles.open(summary_markdown_path, "w", encoding="utf-8") as f:
                 await f.write(summary_with_source)
+
+        if output_format == "txt":
+            summary_text_filename = f"summary_{safe_title}_{short_id}.txt"
+            summary_text_path = TEMP_DIR / summary_text_filename
+            async with aiofiles.open(summary_text_path, "w", encoding="utf-8") as f:
+                await f.write(_markdown_to_plain_text(summary_with_source) + "\n")
 
         if output_format in {"html", "both"}:
             html_filename = f"summary_{safe_title}_{short_id}.html"
@@ -695,9 +714,10 @@ async def summarize_transcript_task(
             "summary_model": model_id or None,
             "summary_reasoning_effort": reasoning_effort or None,
             "summary_output_format": output_format,
-            "summary_path": str(summary_markdown_path) if summary_markdown_path else None,
+            "summary_path": str(summary_markdown_path or summary_text_path) if (summary_markdown_path or summary_text_path) else None,
             "summary_markdown_path": str(summary_markdown_path) if summary_markdown_path else None,
             "summary_html_path": str(summary_html_path) if summary_html_path else None,
+            "summary_text_path": str(summary_text_path) if summary_text_path else None,
             "message": "Files ready.",
         })
         save_tasks(tasks)
@@ -802,8 +822,8 @@ async def download_file(filename: str):
     try:
         # 检查文件扩展名安全性
         suffix = Path(filename).suffix.lower()
-        if suffix not in {'.md', '.html'}:
-            raise HTTPException(status_code=400, detail="仅支持下载.md和.html文件")
+        if suffix not in {'.md', '.html', '.txt'}:
+            raise HTTPException(status_code=400, detail="仅支持下载.md、.html和.txt文件")
         
         # 检查文件名格式（防止路径遍历攻击）
         if '..' in filename or '/' in filename or '\\' in filename:
@@ -813,7 +833,12 @@ async def download_file(filename: str):
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="文件不存在")
 
-        media_type = "text/html" if suffix == ".html" else "text/markdown"
+        if suffix == ".html":
+            media_type = "text/html"
+        elif suffix == ".txt":
+            media_type = "text/plain; charset=utf-8"
+        else:
+            media_type = "text/markdown"
             
         return FileResponse(
             file_path,

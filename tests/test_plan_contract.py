@@ -254,6 +254,44 @@ class PlanContractTests(unittest.TestCase):
         self.assertEqual(main.tasks[task_id]["summary_prompt"], "Focus on action items and open questions.")
         self.assertEqual(main.tasks[task_id]["summary_reasoning_effort"], "high")
 
+    def test_summarize_endpoint_can_generate_txt_summary_file(self):
+        class FakeSummarizer:
+            async def summarize(self, transcript, target_language, video_title, custom_prompt=""):
+                return "# Summary\n\nPlain text body"
+
+        task_id = "txt-summary-task"
+        main.tasks[task_id] = {
+            "status": "completed",
+            "script": "Transcript body",
+            "transcript": "Transcript body",
+            "video_title": "Video",
+            "url": "https://youtu.be/txt-summary",
+            "short_id": "txt001",
+            "safe_title": "Video",
+        }
+
+        async def run_endpoint():
+            response = await main.summarize_transcript(
+                task_id=task_id,
+                summary_language="en",
+                api_key="sk-test",
+                model_base_url="",
+                model_id="test-model",
+                output_format="txt",
+            )
+            self.assertEqual(response["summary_status"], "processing")
+            await main.active_summary_tasks[task_id]
+
+        with patch.object(main, "Summarizer", return_value=FakeSummarizer()):
+            asyncio.run(run_endpoint())
+
+        task = main.tasks[task_id]
+        self.assertEqual(task["summary_output_format"], "txt")
+        self.assertIsNotNone(task["summary_text_path"])
+        self.assertTrue(task["summary_text_path"].endswith(".txt"))
+        self.assertTrue(Path(task["summary_text_path"]).exists())
+        self.assertIn("Plain text body", Path(task["summary_text_path"]).read_text(encoding="utf-8"))
+
     def test_groq_media_fetch_error_refreshes_audio_url_and_retries_once(self):
         class FakeVideoProcessor:
             def __init__(self):

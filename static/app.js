@@ -67,9 +67,11 @@ class VideoTranscriber {
         download_summary:        'Summary',
         download_summary_md:     'Summary MD',
         download_summary_html:   'Summary HTML',
+        download_summary_txt:    'Summary TXT',
         output_format:           'Output Format',
         format_markdown:         'Markdown',
         format_html:             'HTML',
+        format_txt:              'TXT',
         format_both:             'Markdown + HTML',
         generate_summary:        'Generate Summary',
         summary_waiting:         'Transcript is ready. Generate the summary when you want to send it to the summary provider.',
@@ -143,9 +145,11 @@ class VideoTranscriber {
         download_summary:        'Сводка',
         download_summary_md:     'Сводка MD',
         download_summary_html:   'Сводка HTML',
+        download_summary_txt:    'Сводка TXT',
         output_format:           'Формат вывода',
         format_markdown:         'Markdown',
         format_html:             'HTML',
+        format_txt:              'TXT',
         format_both:             'Markdown + HTML',
         generate_summary:        'Создать сводку',
         summary_waiting:         'Транскрипт готов. Создайте сводку, когда будете готовы отправить его провайдеру.',
@@ -219,9 +223,11 @@ class VideoTranscriber {
         download_summary:        'Зведення',
         download_summary_md:     'Зведення MD',
         download_summary_html:   'Зведення HTML',
+        download_summary_txt:    'Зведення TXT',
         output_format:           'Формат виводу',
         format_markdown:         'Markdown',
         format_html:             'HTML',
+        format_txt:              'TXT',
         format_both:             'Markdown + HTML',
         generate_summary:        'Створити зведення',
         summary_waiting:         'Транскрипт готовий. Створіть зведення, коли будете готові надіслати його провайдеру.',
@@ -291,9 +297,11 @@ class VideoTranscriber {
         download_summary:        '摘要',
         download_summary_md:     '摘要 MD',
         download_summary_html:   '摘要 HTML',
+        download_summary_txt:    '摘要 TXT',
         output_format:           '输出格式',
         format_markdown:         'Markdown',
         format_html:             'HTML',
+        format_txt:              'TXT',
         format_both:             'Markdown + HTML',
         generate_summary:        '生成摘要',
         summary_waiting:         '转录已完成。确认后再发送给摘要模型。',
@@ -358,11 +366,19 @@ class VideoTranscriber {
     this.saveTranscriptFormatBottom = document.getElementById('saveTranscriptFormatBottom');
     this.summaryContent     = document.getElementById('summaryContent');
     this.summaryPrompt      = document.getElementById('summaryPrompt');
+    this.summaryActionsTop  = document.getElementById('summaryActionsTop');
+    this.summaryActionsBottom = document.getElementById('summaryActionsBottom');
+    this.copySummaryTop     = document.getElementById('copySummaryTop');
+    this.copySummaryBottom  = document.getElementById('copySummaryBottom');
+    this.saveSummaryTop     = document.getElementById('saveSummaryTop');
+    this.saveSummaryBottom  = document.getElementById('saveSummaryBottom');
+    this.saveSummaryFormatTop = document.getElementById('saveSummaryFormatTop');
+    this.saveSummaryFormatBottom = document.getElementById('saveSummaryFormatBottom');
     this.translationContent = document.getElementById('translationContent');
-    this.dlScript           = document.getElementById('downloadScript');
     this.dlTranslation      = document.getElementById('downloadTranslation');
     this.dlSummary          = document.getElementById('downloadSummary');
     this.dlSummaryHtml      = document.getElementById('downloadSummaryHtml');
+    this.dlSummaryTxt       = document.getElementById('downloadSummaryTxt');
     this.generateSummaryBtn = document.getElementById('generateSummary');
     this.summaryFormatSel   = document.getElementById('summaryFormat');
     this.summaryPromptInput = document.getElementById('summaryPromptInput');
@@ -451,21 +467,33 @@ class VideoTranscriber {
     });
 
     // Downloads
-    this.dlScript.addEventListener('click',      () => this._downloadFile('script'));
     this.dlTranslation.addEventListener('click', () => this._downloadFile('translation'));
     this.dlSummary.addEventListener('click',     () => this._downloadFile('summary_md'));
     this.dlSummaryHtml.addEventListener('click', () => this._downloadFile('summary_html'));
+    this.dlSummaryTxt.addEventListener('click',  () => this._downloadFile('summary_txt'));
     this.generateSummaryBtn.addEventListener('click', () => this._generateSummary());
     this.copyTranscriptTop.addEventListener('click', () => this._copyTranscriptText(this.copyTranscriptTop));
     this.copyTranscriptBottom.addEventListener('click', () => this._copyTranscriptText(this.copyTranscriptBottom));
     this.saveTranscriptTop.addEventListener('click', () => this._saveTranscript(this.saveTranscriptFormatTop.value));
     this.saveTranscriptBottom.addEventListener('click', () => this._saveTranscript(this.saveTranscriptFormatBottom.value));
+    this.copySummaryTop.addEventListener('click', () => this._copySummaryText(this.copySummaryTop));
+    this.copySummaryBottom.addEventListener('click', () => this._copySummaryText(this.copySummaryBottom));
+    this.saveSummaryTop.addEventListener('click', () => this._saveSummary(this.saveSummaryFormatTop.value));
+    this.saveSummaryBottom.addEventListener('click', () => this._saveSummary(this.saveSummaryFormatBottom.value));
     this.saveTranscriptFormatTop.addEventListener('change', () => {
       this.saveTranscriptFormatBottom.value = this.saveTranscriptFormatTop.value;
       this._saveSettings();
     });
     this.saveTranscriptFormatBottom.addEventListener('change', () => {
       this.saveTranscriptFormatTop.value = this.saveTranscriptFormatBottom.value;
+      this._saveSettings();
+    });
+    this.saveSummaryFormatTop.addEventListener('change', () => {
+      this.saveSummaryFormatBottom.value = this.saveSummaryFormatTop.value;
+      this._saveSettings();
+    });
+    this.saveSummaryFormatBottom.addEventListener('change', () => {
+      this.saveSummaryFormatTop.value = this.saveSummaryFormatBottom.value;
       this._saveSettings();
     });
   }
@@ -537,6 +565,7 @@ class VideoTranscriber {
       summaryFormat: this.summaryFormatSel.value,
       summaryPrompt: this.summaryPromptInput.value,
       transcriptSaveFormat: this.saveTranscriptFormatTop.value,
+      summarySaveFormat: this.saveSummaryFormatTop.value,
     };
     try { localStorage.setItem('vt_settings', JSON.stringify(s)); } catch (_) {}
   }
@@ -558,9 +587,13 @@ class VideoTranscriber {
       this.includeTimecodesInput.checked = Boolean(s.includeTimecodes);
       if (s.summaryFormat) this.summaryFormatSel.value = s.summaryFormat;
       if (s.summaryPrompt) this.summaryPromptInput.value = s.summaryPrompt;
-      if (['md', 'txt'].includes(s.transcriptSaveFormat)) {
+      if (['md', 'txt', 'pdf'].includes(s.transcriptSaveFormat)) {
         this.saveTranscriptFormatTop.value = s.transcriptSaveFormat;
         this.saveTranscriptFormatBottom.value = s.transcriptSaveFormat;
+      }
+      if (['md', 'txt', 'pdf'].includes(s.summarySaveFormat)) {
+        this.saveSummaryFormatTop.value = s.summarySaveFormat;
+        this.saveSummaryFormatBottom.value = s.summarySaveFormat;
       }
       // Model options will be restored after fetching
       this._savedModel = s.model || '';
@@ -948,11 +981,20 @@ class VideoTranscriber {
     if (this.summaryPrompt) {
       this.summaryPrompt.style.display = summary ? 'none' : 'flex';
     }
+    if (this.summaryActionsTop) {
+      this.summaryActionsTop.style.display = summary ? 'flex' : 'none';
+    }
+    if (this.summaryActionsBottom) {
+      this.summaryActionsBottom.style.display = summary ? 'flex' : 'none';
+    }
     if (this.dlSummary) {
       this.dlSummary.style.display = (this.currentTask.summary_markdown_path || this.currentTask.summary_path) ? 'inline-flex' : 'none';
     }
     if (this.dlSummaryHtml) {
       this.dlSummaryHtml.style.display = this.currentTask.summary_html_path ? 'inline-flex' : 'none';
+    }
+    if (this.dlSummaryTxt) {
+      this.dlSummaryTxt.style.display = this.currentTask.summary_text_path ? 'inline-flex' : 'none';
     }
 
     const showTranslation = translation && detectedLang && summaryLang && detectedLang !== summaryLang;
@@ -1038,8 +1080,13 @@ class VideoTranscriber {
     return String(this.currentTask?.transcript || this.currentTask?.script || '').trim();
   }
 
-  _transcriptPlainText() {
-    return this._transcriptMarkdown()
+  _summaryMarkdown() {
+    return String(this.currentTask?.summary || '').trim();
+  }
+
+  _markdownToPlainText(markdown) {
+    return String(markdown || '')
+      .trim()
       .replace(/^#{1,6}\s+/gm, '')
       .replace(/\*\*([^*]+)\*\*/g, '$1')
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
@@ -1049,8 +1096,16 @@ class VideoTranscriber {
       .trim();
   }
 
-  async _copyTranscriptText(button) {
-    const text = this._transcriptPlainText();
+  _transcriptPlainText() {
+    return this._markdownToPlainText(this._transcriptMarkdown());
+  }
+
+  _summaryPlainText() {
+    return this._markdownToPlainText(this._summaryMarkdown());
+  }
+
+  async _copyMarkdownText(markdown, button) {
+    const text = this._markdownToPlainText(markdown);
     if (!text) { this._showError(this.t('error_no_download')); return; }
 
     try {
@@ -1073,6 +1128,14 @@ class VideoTranscriber {
     }
   }
 
+  async _copyTranscriptText(button) {
+    return this._copyMarkdownText(this._transcriptMarkdown(), button);
+  }
+
+  async _copySummaryText(button) {
+    return this._copyMarkdownText(this._summaryMarkdown(), button);
+  }
+
   _flashCopyButton(button) {
     const label = button?.querySelector('span');
     if (!label) return;
@@ -1085,14 +1148,21 @@ class VideoTranscriber {
     }, 1200);
   }
 
-  _saveTranscript(format) {
-    const normalized = format === 'txt' ? 'txt' : 'md';
-    const content = normalized === 'txt' ? this._transcriptPlainText() : this._transcriptMarkdown();
+  _saveMarkdownFile(markdown, format, prefix) {
+    const normalized = format === 'txt' ? 'txt' : format === 'pdf' ? 'pdf' : 'md';
+    const title = this.currentTask?.safe_title || 'video';
+    const shortId = this.currentTask?.short_id || this.currentTaskId || prefix;
+    const filenameBase = `${prefix}_${this._safeFilename(title)}_${this._safeFilename(shortId)}`;
+
+    if (normalized === 'pdf') {
+      this._savePdfFromMarkdown(markdown, `${filenameBase}.pdf`);
+      return;
+    }
+
+    const content = normalized === 'txt' ? this._markdownToPlainText(markdown) : String(markdown || '').trim();
     if (!content) { this._showError(this.t('error_no_download')); return; }
 
-    const title = this.currentTask?.safe_title || 'video';
-    const shortId = this.currentTask?.short_id || this.currentTaskId || 'transcript';
-    const filename = `transcript_${this._safeFilename(title)}_${this._safeFilename(shortId)}.${normalized}`;
+    const filename = `${filenameBase}.${normalized}`;
     const type = normalized === 'txt' ? 'text/plain;charset=utf-8' : 'text/markdown;charset=utf-8';
     const blob = new Blob([`${content}\n`], { type });
     const url = URL.createObjectURL(blob);
@@ -1103,6 +1173,87 @@ class VideoTranscriber {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  async _savePdfFromMarkdown(markdown, filename) {
+    const content = String(markdown || '').trim();
+    if (!content) { this._showError(this.t('error_no_download')); return; }
+    if (!window.html2canvas || !window.jspdf?.jsPDF) {
+      this._showError('PDF export is unavailable in this browser session.');
+      return;
+    }
+
+    const wrapper = document.createElement('div');
+    wrapper.style.position = 'fixed';
+    wrapper.style.left = '-20000px';
+    wrapper.style.top = '0';
+    wrapper.style.width = '820px';
+    wrapper.style.padding = '36px 42px';
+    wrapper.style.background = '#F4F2EB';
+    wrapper.style.color = '#191F2F';
+    wrapper.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    wrapper.style.lineHeight = '1.7';
+    wrapper.style.boxSizing = 'border-box';
+    wrapper.innerHTML = `
+      <style>
+        .pdf-markdown { font-size: 14px; color: #191F2F; }
+        .pdf-markdown h1 { font-size: 28px; margin: 0 0 16px; }
+        .pdf-markdown h2 { font-size: 21px; margin: 28px 0 12px; padding-top: 12px; border-top: 1px solid #B8C2DC; color: #6F7EA4; }
+        .pdf-markdown h2:first-child { border-top: 0; padding-top: 0; }
+        .pdf-markdown h3 { font-size: 17px; margin: 18px 0 8px; color: #6F7EA4; }
+        .pdf-markdown p { margin: 0 0 12px; }
+        .pdf-markdown strong { color: #6F7EA4; }
+        .pdf-markdown blockquote { margin: 14px 0; padding-left: 12px; border-left: 3px solid #9EABCC; color: #707C9F; }
+        .pdf-markdown ul, .pdf-markdown ol { margin: 0 0 14px 20px; }
+        .pdf-markdown a { color: #6F7EA4; text-decoration: underline; }
+        .pdf-markdown hr { border: 0; border-top: 1px solid #B8C2DC; margin: 16px 0; }
+      </style>
+      <div class="pdf-markdown">${marked.parse(content)}</div>
+    `;
+    document.body.appendChild(wrapper);
+
+    try {
+      const canvas = await window.html2canvas(wrapper, {
+        backgroundColor: '#F4F2EB',
+        scale: 2,
+        useCORS: true,
+      });
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+      const usableWidth = pageWidth - margin * 2;
+      const usableHeight = pageHeight - margin * 2;
+      const imageData = canvas.toDataURL('image/png');
+      const imageHeight = (canvas.height * usableWidth) / canvas.width;
+      let heightLeft = imageHeight;
+      let position = margin;
+
+      pdf.addImage(imageData, 'PNG', margin, position, usableWidth, imageHeight, undefined, 'FAST');
+      heightLeft -= usableHeight;
+
+      while (heightLeft > 0) {
+        position = margin - (imageHeight - heightLeft);
+        pdf.addPage();
+        pdf.addImage(imageData, 'PNG', margin, position, usableWidth, imageHeight, undefined, 'FAST');
+        heightLeft -= usableHeight;
+      }
+
+      pdf.save(filename);
+    } catch (e) {
+      this._showError(`PDF export failed: ${e.message}`);
+    } finally {
+      document.body.removeChild(wrapper);
+    }
+  }
+
+  _saveTranscript(format) {
+    return this._saveMarkdownFile(this._transcriptMarkdown(), format, 'transcript');
+  }
+
+  _saveSummary(format) {
+    return this._saveMarkdownFile(this._summaryMarkdown(), format, 'summary');
   }
 
   _safeFilename(value) {
@@ -1121,6 +1272,7 @@ class VideoTranscriber {
       if      (type === 'script')       filename = this._filenameFromPath(task.script_path) || `transcript_${task.safe_title||'x'}_${task.short_id||'x'}.md`;
       else if (type === 'summary_md')   filename = this._filenameFromPath(task.summary_markdown_path || task.summary_path);
       else if (type === 'summary_html') filename = this._filenameFromPath(task.summary_html_path);
+      else if (type === 'summary_txt')  filename = this._filenameFromPath(task.summary_text_path);
       else if (type === 'translation')  filename = this._filenameFromPath(task.translation_path) || `translation_${task.safe_title||'x'}_${task.short_id||'x'}.md`;
       else throw new Error('Unknown type');
       if (!filename) throw new Error(this.t('error_no_download'));
