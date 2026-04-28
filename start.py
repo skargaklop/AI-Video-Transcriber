@@ -12,6 +12,11 @@ import webbrowser
 import urllib.request
 from pathlib import Path
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 
 def open_browser(url: str, timeout: int = 15) -> None:
     """Wait until the server is up, then open the browser."""
@@ -51,6 +56,33 @@ def check_dependencies():
     print("✅ 所有依赖已安装")
     return True
 
+
+def report_optional_local_backends():
+    """Report optional local transcription backend availability."""
+    optional_packages = {
+        "faster-whisper (Whisper local backend)": "faster_whisper",
+        "NVIDIA NeMo (Parakeet local backend)": "nemo",
+    }
+    available = []
+    missing = []
+
+    for display_name, import_name in optional_packages.items():
+        try:
+            __import__(import_name)
+            available.append(display_name)
+        except ImportError:
+            missing.append(display_name)
+
+    if available:
+        print("ℹ️  Optional local backends available:")
+        for package in available:
+            print(f"   - {package}")
+    if missing:
+        print("ℹ️  Optional local backends not installed:")
+        for package in missing:
+            print(f"   - {package}")
+        print("   The app will still start. These backends remain unavailable until installed.")
+
 def setup_environment():
     """设置环境变量"""
     # 设置OpenAI配置
@@ -82,6 +114,7 @@ def main():
     # 检查依赖
     if not check_dependencies():
         sys.exit(1)
+    report_optional_local_backends()
     
     # 设置环境
     setup_environment()

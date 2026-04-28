@@ -345,7 +345,7 @@
     }
 
     .settings-body.open {
-      max-height: 700px;
+      max-height: 1200px;
       margin-top: 12px;
     }
 
@@ -500,6 +500,25 @@
       color: var(--error);
     }
 
+    .status-note {
+      font-size: 12px;
+      color: var(--text-dim);
+      line-height: 1.5;
+      min-height: 18px;
+    }
+
+    .status-note.warn {
+      color: var(--warning);
+    }
+
+    .status-note.error {
+      color: var(--error);
+    }
+
+    .setting-hidden {
+      display: none !important;
+    }
+
     /* ── Result panel ────────────────────────────────────── */
     .result-panel {
       background: var(--surface);
@@ -571,6 +590,7 @@
       background: rgba(138, 138, 138, .08);
     }
 
+    .mode-badge.local,
     .mode-badge.whisper {
       color: var(--accent-dim);
       border-color: rgba(138, 138, 138, .35);
@@ -581,6 +601,12 @@
       color: #999999;
       border-color: rgba(153, 153, 153, .35);
       background: rgba(153, 153, 153, .08);
+    }
+
+    .mode-badge.fallback {
+      color: var(--accent-text);
+      border-color: rgba(158, 171, 204, .45);
+      background: rgba(158, 171, 204, .12);
     }
 
     .prog-bar {
@@ -887,7 +913,7 @@
       }
 
       .settings-body.open {
-        max-height: 840px;
+        max-height: 1500px;
       }
 
       .summary-actions {
@@ -985,15 +1011,37 @@
     <div class="settings-body" id="settingsBody">
       <div class="settings-card">
         <div class="settings-grid">
-          <div class="span2 settings-section" data-i18n="groq_transcription">Groq Transcription</div>
+          <div class="span2 settings-section" data-i18n="transcription_provider_section">Transcription Provider</div>
 
           <div>
+            <label class="s-label" for="transcriptionProviderSelect" data-i18n="transcription_provider">Transcription Provider</label>
+            <select id="transcriptionProviderSelect" class="s-select">
+              <option value="groq" data-i18n="provider_groq">Groq</option>
+              <option value="local" data-i18n="provider_local">Local</option>
+            </select>
+          </div>
+
+          <div class="status-note" id="localCapabilitiesNotice"></div>
+
+          <label class="span2 check-row">
+            <input id="trySubtitlesFirstInput" type="checkbox" checked>
+            <span data-i18n="try_subtitles_first">Try YouTube subtitles first</span>
+          </label>
+
+          <label class="span2 check-row" id="useLocalFallbackRow">
+            <input id="useLocalFallbackInput" type="checkbox">
+            <span data-i18n="use_local_fallback">Use local model as fallback for Groq</span>
+          </label>
+
+          <div class="span2 settings-section groq-setting" data-i18n="groq_transcription">Groq Transcription</div>
+
+          <div class="groq-setting">
             <label class="s-label" data-i18n="groq_api_key">Groq API Key</label>
             <input id="groqApiKeyInput" class="s-input" type="password" placeholder="gsk_..."
               data-i18n-placeholder="groq_api_key_placeholder" autocomplete="new-password">
           </div>
 
-          <div>
+          <div class="groq-setting">
             <label class="s-label" data-i18n="groq_model">Groq Whisper Model</label>
             <select id="groqModelSelect" class="s-select">
               <option value="whisper-large-v3-turbo">whisper-large-v3-turbo</option>
@@ -1001,16 +1049,48 @@
             </select>
           </div>
 
-          <div>
+          <div class="groq-setting">
             <label class="s-label" data-i18n="groq_language">Input Language</label>
             <input id="groqLanguageInput" class="s-input" type="text" placeholder="auto"
               data-i18n-placeholder="groq_language_placeholder" maxlength="8" autocomplete="off">
           </div>
 
-          <div>
+          <div class="groq-setting">
             <label class="s-label" data-i18n="groq_prompt">Groq Prompt</label>
             <input id="groqPromptInput" class="s-input" type="text" placeholder="Names, topic, spelling..."
               data-i18n-placeholder="groq_prompt_placeholder" autocomplete="off">
+          </div>
+
+          <div class="span2 settings-section local-setting" id="localSettingsSection" data-i18n="local_transcription">Local Transcription</div>
+
+          <div class="local-setting">
+            <label class="s-label" for="localBackendSelect" data-i18n="local_backend">Local Backend</label>
+            <select id="localBackendSelect" class="s-select">
+              <option value="whisper" data-i18n="local_backend_whisper">Whisper</option>
+              <option value="parakeet" data-i18n="local_backend_parakeet">Parakeet</option>
+            </select>
+          </div>
+
+          <div class="local-setting">
+            <label class="s-label" for="localModelPresetSelect" data-i18n="local_model_preset">Local Model Preset</label>
+            <select id="localModelPresetSelect" class="s-select"></select>
+          </div>
+
+          <div class="span2 local-setting setting-hidden" id="localModelCustomRow">
+            <label class="s-label" for="localModelIdInput" data-i18n="local_model_custom">Custom Local Model</label>
+            <input id="localModelIdInput" class="s-input" type="text"
+              placeholder="openai/whisper-large-v3 or local path"
+              data-i18n-placeholder="local_model_custom_placeholder" autocomplete="off">
+          </div>
+
+          <div class="span2 local-setting">
+            <label class="s-label" for="localLanguageInput" data-i18n="local_language">Local Language Hint</label>
+            <input id="localLanguageInput" class="s-input" type="text" placeholder="auto"
+              data-i18n-placeholder="local_language_placeholder" maxlength="16" autocomplete="off">
+          </div>
+
+          <div class="span2 local-setting">
+            <div id="localCapabilitiesDetail" class="status-note"></div>
           </div>
 
           <label class="span2 check-row">

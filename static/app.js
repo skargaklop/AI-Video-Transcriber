@@ -330,11 +330,106 @@ class VideoTranscriber {
       }
     };
 
+    Object.assign(this.i18n.en, {
+      transcription_provider_section: 'Transcription Provider',
+      transcription_provider: 'Transcription Provider',
+      provider_groq: 'Groq',
+      provider_local: 'Local',
+      try_subtitles_first: 'Try YouTube subtitles first',
+      use_local_fallback: 'Use local model as fallback for Groq',
+      local_transcription: 'Local Transcription',
+      local_backend: 'Local Backend',
+      local_backend_whisper: 'Whisper',
+      local_backend_parakeet: 'Parakeet',
+      local_model_preset: 'Local Model Preset',
+      local_model_custom: 'Custom Local Model',
+      local_model_custom_option: 'Custom model',
+      local_model_custom_placeholder: 'openai/whisper-large-v3 or local path',
+      local_language: 'Local Language Hint',
+      local_language_placeholder: 'auto',
+      local_runtime_notice: 'Runtime',
+      runtime_cuda: 'CUDA',
+      runtime_cpu: 'CPU',
+      local_backend_ready: 'Local backend is available.',
+      local_backend_unavailable: 'Local backend is unavailable.',
+      local_backend_auto_install: 'Missing backend packages and the selected model will be installed automatically on first use.',
+      local_capabilities_error: 'Failed to load local model capabilities.',
+      parakeet_cpu_warning: 'Parakeet may be slow on CPU.',
+      mode_local: 'Local',
+      mode_fallback: 'Local fallback',
+      local_transcribing_audio: 'Transcribing with local model…',
+      local_fallback_progress: 'Groq failed, running local fallback…',
+    });
+
+    Object.assign(this.i18n.ru, {
+      transcription_provider_section: 'Провайдер транскрибации',
+      transcription_provider: 'Провайдер транскрибации',
+      provider_groq: 'Groq',
+      provider_local: 'Локально',
+      try_subtitles_first: 'Сначала пробовать YouTube-субтитры',
+      use_local_fallback: 'Использовать локальную модель как fallback для Groq',
+      local_transcription: 'Локальная транскрибация',
+      local_backend: 'Локальный движок',
+      local_backend_whisper: 'Whisper',
+      local_backend_parakeet: 'Parakeet',
+      local_model_preset: 'Пресет локальной модели',
+      local_model_custom: 'Своя локальная модель',
+      local_model_custom_option: 'Своя модель',
+      local_model_custom_placeholder: 'openai/whisper-large-v3 или локальный путь',
+      local_language: 'Подсказка по языку',
+      local_language_placeholder: 'auto',
+      local_runtime_notice: 'Режим',
+      runtime_cuda: 'CUDA',
+      runtime_cpu: 'CPU',
+      local_backend_ready: 'Локальный движок доступен.',
+      local_backend_unavailable: 'Локальный движок недоступен.',
+      local_backend_auto_install: 'Недостающие пакеты движка и выбранная модель будут установлены автоматически при первом запуске.',
+      local_capabilities_error: 'Не удалось загрузить возможности локальных моделей.',
+      parakeet_cpu_warning: 'Parakeet может работать медленно на CPU.',
+      mode_local: 'Локально',
+      mode_fallback: 'Локальный fallback',
+      local_transcribing_audio: 'Транскрибация локальной моделью…',
+      local_fallback_progress: 'Groq недоступен, запускаю локальный fallback…',
+    });
+
+    Object.assign(this.i18n.uk, {
+      transcription_provider_section: 'Провайдер транскрибування',
+      transcription_provider: 'Провайдер транскрибування',
+      provider_groq: 'Groq',
+      provider_local: 'Локально',
+      try_subtitles_first: 'Спочатку пробувати YouTube-субтитри',
+      use_local_fallback: 'Використовувати локальну модель як fallback для Groq',
+      local_transcription: 'Локальне транскрибування',
+      local_backend: 'Локальний рушій',
+      local_backend_whisper: 'Whisper',
+      local_backend_parakeet: 'Parakeet',
+      local_model_preset: 'Пресет локальної моделі',
+      local_model_custom: 'Власна локальна модель',
+      local_model_custom_option: 'Власна модель',
+      local_model_custom_placeholder: 'openai/whisper-large-v3 або локальний шлях',
+      local_language: 'Підказка щодо мови',
+      local_language_placeholder: 'auto',
+      local_runtime_notice: 'Режим',
+      runtime_cuda: 'CUDA',
+      runtime_cpu: 'CPU',
+      local_backend_ready: 'Локальний рушій доступний.',
+      local_backend_unavailable: 'Локальний рушій недоступний.',
+      local_backend_auto_install: 'Відсутні пакети рушія та вибрана модель будуть встановлені автоматично під час першого запуску.',
+      local_capabilities_error: 'Не вдалося завантажити можливості локальних моделей.',
+      parakeet_cpu_warning: 'Parakeet може працювати повільно на CPU.',
+      mode_local: 'Локально',
+      mode_fallback: 'Локальний fallback',
+      local_transcribing_audio: 'Транскрибування локальною моделлю…',
+      local_fallback_progress: 'Groq недоступний, запускаю локальний fallback…',
+    });
+
     this._initElements();
     this._bindEvents();
     this._loadSettings();
     this._switchLang(this._savedUiLang || 'en');
     this._updateReasoningAvailability();
+    this._fetchLocalCapabilities();
+    this._syncProviderSettings();
   }
 
   /* ── Elements ─────────────────────────────────────────── */
@@ -394,12 +489,26 @@ class VideoTranscriber {
     this.groqModelSelect    = document.getElementById('groqModelSelect');
     this.groqLanguageInput  = document.getElementById('groqLanguageInput');
     this.groqPromptInput    = document.getElementById('groqPromptInput');
+    this.transcriptionProviderSelect = document.getElementById('transcriptionProviderSelect');
+    this.trySubtitlesFirstInput = document.getElementById('trySubtitlesFirstInput');
+    this.useLocalFallbackInput = document.getElementById('useLocalFallbackInput');
+    this.useLocalFallbackRow = document.getElementById('useLocalFallbackRow');
+    this.localBackendSelect = document.getElementById('localBackendSelect');
+    this.localModelPresetSelect = document.getElementById('localModelPresetSelect');
+    this.localModelCustomRow = document.getElementById('localModelCustomRow');
+    this.localModelIdInput = document.getElementById('localModelIdInput');
+    this.localLanguageInput = document.getElementById('localLanguageInput');
+    this.localCapabilitiesNotice = document.getElementById('localCapabilitiesNotice');
+    this.localCapabilitiesDetail = document.getElementById('localCapabilitiesDetail');
+    this.groqSettings = Array.from(document.querySelectorAll('.groq-setting'));
+    this.localSettings = Array.from(document.querySelectorAll('.local-setting'));
     this.includeTimecodesInput = document.getElementById('includeTimecodesInput');
     this.fetchModelsBtn     = document.getElementById('fetchModelsBtn');
     this.fetchStatus        = document.getElementById('fetchStatus');
     this.modelSelect        = document.getElementById('modelSelect');
     this.reasoningEffortSelect = document.getElementById('reasoningEffortSelect');
     this.fetchIcon          = document.getElementById('fetchIcon');
+    this.localCapabilities  = null;
   }
 
   /* ── Events ───────────────────────────────────────────── */
@@ -435,6 +544,23 @@ class VideoTranscriber {
     // Fetch models
     this.fetchModelsBtn.addEventListener('click', () => this._fetchModels());
     this.modelSelect.addEventListener('change', () => this._updateReasoningAvailability());
+    this.transcriptionProviderSelect.addEventListener('change', () => {
+      this._syncProviderSettings();
+      this._saveSettings();
+    });
+    this.useLocalFallbackInput.addEventListener('change', () => {
+      this._syncProviderSettings();
+      this._saveSettings();
+    });
+    this.localBackendSelect.addEventListener('change', () => {
+      this._populateLocalModelPresets();
+      this._syncProviderSettings();
+      this._saveSettings();
+    });
+    this.localModelPresetSelect.addEventListener('change', () => {
+      this._syncProviderSettings();
+      this._saveSettings();
+    });
 
     // Auto-fetch when both fields filled (debounced)
     const debouncedFetch = this._debounce(() => {
@@ -454,6 +580,9 @@ class VideoTranscriber {
       this.groqModelSelect,
       this.groqLanguageInput,
       this.groqPromptInput,
+      this.trySubtitlesFirstInput,
+      this.localModelIdInput,
+      this.localLanguageInput,
       this.includeTimecodesInput,
       this.summaryFormatSel,
       this.summaryPromptInput,
@@ -561,6 +690,13 @@ class VideoTranscriber {
       groqModel: this.groqModelSelect.value,
       groqLanguage: this.groqLanguageInput.value,
       groqPrompt: this.groqPromptInput.value,
+      transcriptionProvider: this.transcriptionProviderSelect.value,
+      trySubtitlesFirst: this.trySubtitlesFirstInput.checked,
+      useLocalFallback: this.useLocalFallbackInput.checked,
+      localBackend: this.localBackendSelect.value,
+      localModelPreset: this.localModelPresetSelect.value,
+      localModelId: this.localModelIdInput.value,
+      localLanguage: this.localLanguageInput.value,
       includeTimecodes: this.includeTimecodesInput.checked,
       summaryFormat: this.summaryFormatSel.value,
       summaryPrompt: this.summaryPromptInput.value,
@@ -584,6 +720,13 @@ class VideoTranscriber {
       if (s.groqModel)   this.groqModelSelect.value = s.groqModel;
       if (s.groqLanguage) this.groqLanguageInput.value = s.groqLanguage;
       if (s.groqPrompt)  this.groqPromptInput.value = s.groqPrompt;
+      if (s.transcriptionProvider) this.transcriptionProviderSelect.value = s.transcriptionProvider;
+      this.trySubtitlesFirstInput.checked = s.trySubtitlesFirst !== false;
+      this.useLocalFallbackInput.checked = Boolean(s.useLocalFallback);
+      if (s.localBackend) this.localBackendSelect.value = s.localBackend;
+      this._savedLocalModelPreset = s.localModelPreset || '';
+      if (s.localModelId) this.localModelIdInput.value = s.localModelId;
+      if (s.localLanguage) this.localLanguageInput.value = s.localLanguage;
       this.includeTimecodesInput.checked = Boolean(s.includeTimecodes);
       if (s.summaryFormat) this.summaryFormatSel.value = s.summaryFormat;
       if (s.summaryPrompt) this.summaryPromptInput.value = s.summaryPrompt;
@@ -599,7 +742,7 @@ class VideoTranscriber {
       this._savedModel = s.model || '';
 
       // Auto-open settings if credentials were saved
-      if (s.baseUrl || s.apiKey || s.groqApiKey) {
+      if (s.baseUrl || s.apiKey || s.groqApiKey || s.transcriptionProvider === 'local' || s.useLocalFallback) {
         this.settingsBody.classList.add('open');
         this.settingsToggle.classList.add('open');
         // Attempt to re-fetch model list silently
@@ -607,7 +750,137 @@ class VideoTranscriber {
           setTimeout(() => this._fetchModels(true), 400);
         }
       }
+      this._syncProviderSettings();
     } catch (_) {}
+  }
+
+  async _fetchLocalCapabilities() {
+    try {
+      const resp = await fetch(`${this.apiBase}/local-model-capabilities`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      this.localCapabilities = await resp.json();
+      Array.from(this.localBackendSelect?.options || []).forEach(option => {
+        const backendCaps = this.localCapabilities?.backends?.[option.value];
+        option.disabled = backendCaps ? !backendCaps.available : false;
+      });
+      if (this.localBackendSelect?.selectedOptions?.[0]?.disabled) {
+        const fallbackOption = Array.from(this.localBackendSelect.options).find(option => !option.disabled);
+        if (fallbackOption) this.localBackendSelect.value = fallbackOption.value;
+      }
+      this._populateLocalModelPresets();
+      this._renderLocalCapabilities();
+      this._syncProviderSettings();
+    } catch (e) {
+      console.warn('Local capabilities fetch error:', e);
+      this.localCapabilities = null;
+      if (this.localCapabilitiesNotice) {
+        this.localCapabilitiesNotice.className = 'status-note error';
+        this.localCapabilitiesNotice.textContent = this.t('local_capabilities_error');
+      }
+      if (this.localCapabilitiesDetail) {
+        this.localCapabilitiesDetail.className = 'status-note error';
+        this.localCapabilitiesDetail.textContent = e.message;
+      }
+    }
+  }
+
+  _backendCapabilities(backend) {
+    const backends = this.localCapabilities?.backends || {};
+    return backends[backend] || null;
+  }
+
+  _populateLocalModelPresets() {
+    if (!this.localModelPresetSelect) return;
+    const backend = this.localBackendSelect?.value || 'whisper';
+    const caps = this._backendCapabilities(backend);
+    const presets = Array.isArray(caps?.presets) ? caps.presets : [];
+    const fallbackPresets = backend === 'parakeet'
+      ? ['nvidia/parakeet-tdt-0.6b-v3', 'nvidia/parakeet-tdt-0.6b-v2']
+      : ['tiny', 'base', 'small', 'medium', 'large-v3'];
+    const values = presets.length ? presets : fallbackPresets;
+    const current = this.localModelPresetSelect.value || this._savedLocalModelPreset || '';
+
+    this.localModelPresetSelect.innerHTML = '';
+    values.forEach(value => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = value;
+      this.localModelPresetSelect.appendChild(option);
+    });
+    const customOption = document.createElement('option');
+    customOption.value = 'custom';
+    customOption.textContent = this.t('local_model_custom_option');
+    this.localModelPresetSelect.appendChild(customOption);
+
+    const preferred = current && [...values, 'custom'].includes(current)
+      ? current
+      : (caps?.default_preset || values[0] || 'custom');
+    this.localModelPresetSelect.value = preferred;
+    this._savedLocalModelPreset = '';
+    this._syncProviderSettings();
+  }
+
+  _renderLocalCapabilities() {
+    const backend = this.localBackendSelect?.value || 'whisper';
+    const caps = this._backendCapabilities(backend);
+    const runtime = this.localCapabilities?.runtime || 'cpu';
+    const runtimeLabel = this.t(runtime === 'cuda' ? 'runtime_cuda' : 'runtime_cpu');
+
+    if (this.localCapabilitiesNotice) {
+      this.localCapabilitiesNotice.className = 'status-note';
+      this.localCapabilitiesNotice.textContent = `${this.t('local_runtime_notice')}: ${runtimeLabel}`;
+    }
+
+    if (!this.localCapabilitiesDetail) return;
+    if (!caps) {
+      this.localCapabilitiesDetail.className = 'status-note error';
+      this.localCapabilitiesDetail.textContent = this.t('local_capabilities_error');
+      return;
+    }
+
+    const parts = [];
+    parts.push(caps.available ? this.t('local_backend_ready') : this.t('local_backend_unavailable'));
+    if (!caps.available && caps.auto_install) {
+      parts.push(this.t('local_backend_auto_install'));
+    }
+    if (caps.runtime) {
+      parts.push(`${this.t('local_runtime_notice')}: ${this.t(caps.runtime === 'cuda' ? 'runtime_cuda' : 'runtime_cpu')}`);
+    }
+    if (caps.warning_code === 'parakeet_cpu_slow') {
+      parts.push(this.t('parakeet_cpu_warning'));
+    } else if (caps.warning) {
+      parts.push(caps.warning);
+    }
+    this.localCapabilitiesDetail.className = `status-note${caps.available ? (caps.warning ? ' warn' : '') : ' error'}`;
+    this.localCapabilitiesDetail.textContent = parts.join(' ');
+  }
+
+  _syncProviderSettings() {
+    const provider = this.transcriptionProviderSelect?.value || 'groq';
+    const useFallback = Boolean(this.useLocalFallbackInput?.checked);
+    const showGroq = provider === 'groq';
+    const showLocal = provider === 'local' || (provider === 'groq' && useFallback);
+    const showCustomModel = this.localModelPresetSelect?.value === 'custom';
+
+    this.groqSettings?.forEach(el => el.classList.toggle('setting-hidden', !showGroq));
+    this.localSettings?.forEach(el => el.classList.toggle('setting-hidden', !showLocal));
+    if (this.useLocalFallbackRow) {
+      this.useLocalFallbackRow.classList.toggle('setting-hidden', provider !== 'groq');
+    }
+    if (this.localModelCustomRow) {
+      this.localModelCustomRow.classList.toggle('setting-hidden', !showLocal || !showCustomModel);
+    }
+
+    if (this.groqApiKeyInput) this.groqApiKeyInput.disabled = !showGroq;
+    if (this.groqModelSelect) this.groqModelSelect.disabled = !showGroq;
+    if (this.groqLanguageInput) this.groqLanguageInput.disabled = !showGroq;
+    if (this.groqPromptInput) this.groqPromptInput.disabled = !showGroq;
+    if (this.localBackendSelect) this.localBackendSelect.disabled = !showLocal;
+    if (this.localModelPresetSelect) this.localModelPresetSelect.disabled = !showLocal;
+    if (this.localModelIdInput) this.localModelIdInput.disabled = !showLocal || !showCustomModel;
+    if (this.localLanguageInput) this.localLanguageInput.disabled = !showLocal;
+
+    this._renderLocalCapabilities();
   }
 
   /* ── Fetch models ─────────────────────────────────────── */
@@ -717,10 +990,24 @@ class VideoTranscriber {
       const groqModel = this.groqModelSelect.value;
       const groqLanguage = this.groqLanguageInput.value.trim();
       const groqPrompt = this.groqPromptInput.value.trim();
+      const transcriptionProvider = this.transcriptionProviderSelect.value;
+      const trySubtitlesFirst = this.trySubtitlesFirstInput.checked;
+      const useLocalFallback = this.useLocalFallbackInput.checked;
+      const localBackend = this.localBackendSelect.value;
+      const localModelPreset = this.localModelPresetSelect.value;
+      const localModelId = this.localModelIdInput.value.trim();
+      const localLanguage = this.localLanguageInput.value.trim();
       if (groqKey) fd.append('groq_api_key', groqKey);
       if (groqModel) fd.append('groq_model', groqModel);
       if (groqLanguage && !['auto', 'auto-detect', 'autodetect', 'detect'].includes(groqLanguage.toLowerCase())) fd.append('groq_language', groqLanguage);
       if (groqPrompt) fd.append('groq_prompt', groqPrompt);
+      fd.append('transcription_provider', transcriptionProvider);
+      fd.append('try_subtitles_first', trySubtitlesFirst ? 'true' : 'false');
+      fd.append('use_local_fallback', useLocalFallback ? 'true' : 'false');
+      fd.append('local_backend', localBackend);
+      if (localModelPreset) fd.append('local_model_preset', localModelPreset);
+      if (localModelId) fd.append('local_model_id', localModelId);
+      if (localLanguage && !['auto', 'auto-detect', 'autodetect', 'detect'].includes(localLanguage.toLowerCase())) fd.append('local_language', localLanguage);
       fd.append('include_timecodes', this.includeTimecodesInput.checked ? 'true' : 'false');
 
       const resp = await fetch(`${this.apiBase}/process-video`, { method: 'POST', body: fd });
@@ -848,30 +1135,36 @@ class VideoTranscriber {
   _updateStage(pct, msg) {
     const m = (msg || '').toLowerCase();
 
-    // ── 字幕路径（快速）──────────────────────────────────────
-    if (m.includes('获取成功') || m.includes('subtitle found') || m.includes('字幕获取')) {
+    if (m.includes('falling back to local') || m.includes('fallback to local') || m.includes('falling back')) {
+      this.sp.stage = 'fallback';
+      this.sp.target = 72;
+      this._setModeBadge('fallback');
+    }
+    else if (m.includes('subtitle found') || m.includes('subtitle extraction succeeded') || m.includes('manual subtitles') || m.includes('automatic subtitles')) {
       this.sp.stage = 'subtitle_found';
       this.sp.target = 55;
       this._setModeBadge('subtitle');
     }
-    // ── 无字幕 → 音频下载路径（慢）────────────────────────────
-    else if (m.includes('未找到字幕') || m.includes('no subtitle') || m.includes('音频url') || m.includes('groq')) {
+    else if (m.includes('local ') || m.includes('whisper') || m.includes('parakeet')) {
+      this.sp.stage = 'local';
+      this.sp.target = 72;
+      this._setModeBadge('local');
+    }
+    else if (m.includes('no subtitle') || m.includes('groq') || m.includes('audio url')) {
       this.sp.stage = 'transcribing';
       this.sp.target = 55;
       this._setModeBadge('groq');
     }
-    // ── 通用字幕检测中 ─────────────────────────────────────────
-    else if (m.includes('检测') && (m.includes('字幕') || m.includes('subtitle'))) {
+    else if (m.includes('subtitle')) {
       this.sp.stage = 'subtitle';
       this.sp.target = 40;
     }
-    // ── 其他阶段 ───────────────────────────────────────────────
-    else if (m.includes('解析') || m.includes('pars'))                     { this.sp.stage = 'parsing';       this.sp.target = 60; }
-    else if (m.includes('下载') || m.includes('download'))                 { this.sp.stage = 'downloading';   this.sp.target = 60; }
-    else if (m.includes('转录') || m.includes('transcrib') || m.includes('whisper') || m.includes('groq')) { this.sp.stage = 'transcribing';  this.sp.target = 80; }
-    else if (m.includes('优化') || m.includes('optimiz'))                  { this.sp.stage = 'optimizing';    this.sp.target = 90; }
-    else if (m.includes('摘要') || m.includes('summary'))                  { this.sp.stage = 'summarizing';   this.sp.target = 95; }
-    else if (m.includes('完成') || m.includes('complet'))                  { this.sp.stage = 'completed';     this.sp.target = 100; }
+    else if (m.includes('pars')) { this.sp.stage = 'parsing'; this.sp.target = 60; }
+    else if (m.includes('download')) { this.sp.stage = 'downloading'; this.sp.target = 60; }
+    else if (m.includes('transcrib')) { this.sp.stage = 'transcribing'; this.sp.target = 80; }
+    else if (m.includes('optimiz')) { this.sp.stage = 'optimizing'; this.sp.target = 90; }
+    else if (m.includes('summary')) { this.sp.stage = 'summarizing'; this.sp.target = 95; }
+    else if (m.includes('complet')) { this.sp.stage = 'completed'; this.sp.target = 100; }
 
     if (pct >= this.sp.target) this.sp.target = Math.min(pct + 8, 99);
   }
@@ -883,7 +1176,17 @@ class VideoTranscriber {
       this.modeBadge.className    = 'mode-badge subtitle';
       this.modeBadge.style.display = 'inline-block';
       if (this.progressFill) this.progressFill.classList.add('subtitle-mode');
-    } else if (mode === 'whisper' || mode === 'groq') {
+    } else if (mode === 'local' || mode === 'whisper') {
+      this.modeBadge.textContent  = this.t('mode_local');
+      this.modeBadge.className    = 'mode-badge local';
+      this.modeBadge.style.display = 'inline-block';
+      if (this.progressFill) this.progressFill.classList.remove('subtitle-mode');
+    } else if (mode === 'fallback') {
+      this.modeBadge.textContent  = this.t('mode_fallback');
+      this.modeBadge.className    = 'mode-badge fallback';
+      this.modeBadge.style.display = 'inline-block';
+      if (this.progressFill) this.progressFill.classList.remove('subtitle-mode');
+    } else if (mode === 'groq') {
       this.modeBadge.textContent  = this.t('mode_groq');
       this.modeBadge.className    = 'mode-badge groq';
       this.modeBadge.style.display = 'inline-block';
@@ -907,7 +1210,7 @@ class VideoTranscriber {
   }
   _tickSP() {
     if (!this.sp.enabled || this.sp.current >= this.sp.target) return;
-    const speeds = { subtitle: .5, parsing: .3, downloading: .18, transcribing: .14, optimizing: .22, summarizing: .28 };
+    const speeds = { subtitle: .5, parsing: .3, downloading: .18, transcribing: .14, local: .14, fallback: .18, optimizing: .22, summarizing: .28 };
     let inc = speeds[this.sp.stage] || .2;
     const remaining = this.sp.target - this.sp.current;
     if (remaining < 5) inc *= .3;
@@ -924,6 +1227,8 @@ class VideoTranscriber {
       downloading:    this.t('downloading_video'),
       parsing:        this.t('parsing_video'),
       transcribing:   this.t('transcribing_audio'),
+      local:          this.t('local_transcribing_audio'),
+      fallback:       this.t('local_fallback_progress'),
       optimizing:     this.t('optimizing_transcript'),
       summarizing:    this.t('generating_summary'),
       completed:      this.t('completed'),
@@ -936,22 +1241,21 @@ class VideoTranscriber {
     this.progressStatus.textContent = `${p}%`;
     this.progressFill.style.width   = `${p}%`;
 
-    // Translate common server messages — more specific checks first
     const m = (msg || '').toLowerCase();
     let label = msg;
-    // ── Subtitle path ──────────────────────────────────────────
-    if      (m.includes('获取成功') || m.includes('subtitle found'))        label = this.t('subtitle_found');
-    else if (m.includes('未找到字幕') || m.includes('no subtitle'))         label = this.t('no_subtitle');
-    else if (m.includes('检测') && (m.includes('字幕') || m.includes('subtitle'))) label = this.t('detecting_subtitles');
-    // ── Groq URL path ────────────────────────────────────────────
-    else if (m.includes('音频url') || m.includes('groq'))  label = this.t('transcribing_audio');
-    else if (m.includes('下载') || m.includes('download'))  label = this.t('downloading_video');
-    else if (m.includes('解析') || m.includes('pars'))      label = this.t('parsing_video');
-    else if (m.includes('转录') || m.includes('transcrib')) label = this.t('transcribing_audio');
-    else if (m.includes('优化') || m.includes('optimiz'))   label = this.t('optimizing_transcript');
-    else if (m.includes('摘要') || m.includes('summary'))   label = this.t('generating_summary');
-    else if (m.includes('完成') || m.includes('complet'))   label = this.t('completed');
-    else if (m.includes('准备') || m.includes('prepar'))    label = this.t('preparing');
+    if      (m.includes('falling back to local') || m.includes('fallback to local') || m.includes('falling back')) label = this.t('local_fallback_progress');
+    else if (m.includes('subtitle found') || m.includes('subtitle extraction succeeded')) label = this.t('subtitle_found');
+    else if (m.includes('no subtitle')) label = this.t('no_subtitle');
+    else if (m.includes('subtitle')) label = this.t('detecting_subtitles');
+    else if (m.includes('local ') || m.includes('whisper') || m.includes('parakeet')) label = this.t('local_transcribing_audio');
+    else if (m.includes('groq') || m.includes('audio url')) label = this.t('transcribing_audio');
+    else if (m.includes('download')) label = this.t('downloading_video');
+    else if (m.includes('pars')) label = this.t('parsing_video');
+    else if (m.includes('transcrib')) label = this.t('transcribing_audio');
+    else if (m.includes('optimiz')) label = this.t('optimizing_transcript');
+    else if (m.includes('summary')) label = this.t('generating_summary');
+    else if (m.includes('complet')) label = this.t('completed');
+    else if (m.includes('prepar')) label = this.t('preparing');
 
     this.progressMessage.textContent = label;
   }

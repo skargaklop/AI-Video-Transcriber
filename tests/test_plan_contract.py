@@ -10,6 +10,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "backend"))
 
 import main  # noqa: E402
+import local_transcription  # noqa: E402
 
 
 class PlanContractTests(unittest.TestCase):
@@ -432,12 +433,298 @@ class PlanContractTests(unittest.TestCase):
         self.assertIn("Groq could not retrieve the temporary media URL", task["error"])
         self.assertIn("local file upload fallback also failed", task["error"])
 
+    def test_local_provider_can_bypass_subtitles_and_use_whisper_backend(self):
+        class FakeVideoProcessor:
+            async def fetch_subtitles(self, url, output_dir):
+                raise AssertionError("subtitle stage should be skipped")
+
+            async def download_and_convert(self, url, output_dir):
+                audio_path = output_dir / "local_whisper.m4a"
+                audio_path.write_bytes(b"fake audio")
+                return str(audio_path), "Local Whisper Video"
+
+        class FakeLocalTranscriber:
+            def __init__(self):
+                self.calls = []
+
+            async def transcribe(self, audio_path, language=""):
+                self.calls.append({"audio_path": audio_path, "language": language})
+                return {
+                    "markdown": "# Video Transcription\n\nLocal whisper transcription",
+                    "language": "en",
+                    "warnings": [],
+                    "runtime": "cpu",
+                    "timestamps_supported": True,
+                }
+
+        fake_local = FakeLocalTranscriber()
+        main.video_processor = FakeVideoProcessor()
+        task_id = "local-whisper-task"
+        url = "https://youtu.be/local-whisper"
+        main.tasks[task_id] = {"status": "processing", "url": url}
+        main.processing_urls.add(url)
+
+        with patch.object(main, "prepare_local_transcriber", return_value=(fake_local, "base")):
+            asyncio.run(
+                main.process_video_task(
+                    task_id,
+                    url,
+                    transcription_provider="local",
+                    try_subtitles_first=False,
+                    local_backend="whisper",
+                    local_model_preset="base",
+                    local_language="en",
+                )
+            )
+
+        task = main.tasks[task_id]
+        self.assertEqual(task["status"], "completed")
+        self.assertEqual(task["transcription_provider_requested"], "local")
+        self.assertEqual(task["transcription_provider_used"], "local")
+        self.assertEqual(task["transcript_source"], "local_audio_file")
+        self.assertEqual(task["local_backend_used"], "whisper")
+        self.assertEqual(task["local_model_used"], "base")
+        self.assertFalse(task["used_local_fallback"])
+        self.assertIn("Local whisper transcription", task["transcript"])
+        self.assertEqual(fake_local.calls[0]["language"], "en")
+
+    def test_local_provider_uses_subtitles_first_when_enabled(self):
+        class FakeVideoProcessor:
+            def __init__(self):
+                self.subtitle_calls = 0
+                self.download_calls = 0
+
+            async def fetch_subtitles(self, url, output_dir):
+                self.subtitle_calls += 1
+                return (
+                    "# Video Transcription\n\nSubtitle transcript",
+                    "Subtitle First Video",
+                    "en",
+                    "youtube_auto_subtitles",
+                )
+
+            async def download_and_convert(self, url, output_dir):
+                self.download_calls += 1
+                raise AssertionError("local audio path should not run when subtitles are available")
+
+        main.video_processor = FakeVideoProcessor()
+        task_id = "local-subtitle-first-task"
+        url = "https://youtu.be/local-subtitle-first"
+        main.tasks[task_id] = {"status": "processing", "url": url}
+        main.processing_urls.add(url)
+
+        with patch.object(main, "prepare_local_transcriber") as prepare_local:
+            asyncio.run(
+                main.process_video_task(
+                    task_id,
+                    url,
+                    transcription_provider="local",
+                    try_subtitles_first=True,
+                    local_backend="whisper",
+                    local_model_preset="base",
+                )
+            )
+
+        task = main.tasks[task_id]
+        self.assertEqual(task["status"], "completed")
+        self.assertEqual(task["transcript_source"], "youtube_auto_subtitles")
+        self.assertEqual(task["transcription_provider_used"], "subtitles")
+        self.assertIsNone(task["local_backend_used"])
+        self.assertFalse(task["used_local_fallback"])
+        self.assertEqual(main.video_processor.subtitle_calls, 1)
+        self.assertEqual(main.video_processor.download_calls, 0)
+        prepare_local.assert_not_called()
+
+    def test_groq_provider_can_fall_back_to_local_backend_for_eligible_errors(self):
+        class FakeVideoProcessor:
+            async def fetch_subtitles(self, url, output_dir):
+                return None, "Groq To Local Video", None, None
+
+            async def extract_audio_url(self, url):
+                return {
+                    "title": "Groq To Local Video",
+                    "audio_url": "https://media.example/groq-local.m4a",
+                }
+
+            async def download_audio_for_upload(self, url, output_dir):
+                audio_path = output_dir / "groq_upload_fail.m4a"
+                audio_path.write_bytes(b"fake upload audio")
+                return str(audio_path), "Groq To Local Video"
+
+            async def download_and_convert(self, url, output_dir):
+                audio_path = output_dir / "groq_local_fallback.m4a"
+                audio_path.write_bytes(b"fake local audio")
+                return str(audio_path), "Groq To Local Video"
+
+        class FakeGroq:
+            async def transcribe_url(self, audio_url, language="", prompt=""):
+                raise main.GroqTranscriptionError("context deadline exceeded")
+
+            async def transcribe_file(self, audio_file, language="", prompt=""):
+                raise main.GroqTranscriptionError("temporary upstream timeout")
+
+        class FakeLocalTranscriber:
+            async def transcribe(self, audio_path, language=""):
+                return {
+                    "markdown": "# Video Transcription\n\nRecovered by local fallback",
+                    "language": "en",
+                    "warnings": ["CPU mode may be slow."],
+                    "runtime": "cpu",
+                    "timestamps_supported": True,
+                }
+
+        main.video_processor = FakeVideoProcessor()
+        task_id = "groq-local-fallback-task"
+        url = "https://youtu.be/groq-local-fallback"
+        main.tasks[task_id] = {"status": "processing", "url": url}
+        main.processing_urls.add(url)
+
+        with patch.object(main, "GroqURLTranscriber", return_value=FakeGroq()):
+            with patch.object(main, "prepare_local_transcriber", return_value=(FakeLocalTranscriber(), "small")):
+                asyncio.run(
+                    main.process_video_task(
+                        task_id,
+                        url,
+                        transcription_provider="groq",
+                        groq_api_key="gsk-test",
+                        try_subtitles_first=True,
+                        use_local_fallback=True,
+                        local_backend="whisper",
+                        local_model_preset="small",
+                    )
+                )
+
+        task = main.tasks[task_id]
+        self.assertEqual(task["status"], "completed")
+        self.assertEqual(task["transcription_provider_requested"], "groq")
+        self.assertEqual(task["transcription_provider_used"], "local")
+        self.assertEqual(task["transcript_source"], "local_audio_file")
+        self.assertTrue(task["used_local_fallback"])
+        self.assertEqual(task["local_backend_used"], "whisper")
+        self.assertEqual(task["local_model_used"], "small")
+        self.assertIn("Recovered by local fallback", task["transcript"])
+        self.assertIn("CPU mode may be slow.", task["warnings"])
+
+    def test_groq_invalid_credentials_do_not_fall_back_to_local(self):
+        class FakeVideoProcessor:
+            async def fetch_subtitles(self, url, output_dir):
+                return None, "Invalid Groq Video", None, None
+
+            async def extract_audio_url(self, url):
+                return {
+                    "title": "Invalid Groq Video",
+                    "audio_url": "https://media.example/invalid-key.m4a",
+                }
+
+        class FakeGroq:
+            async def transcribe_url(self, audio_url, language="", prompt=""):
+                raise main.GroqTranscriptionError("invalid api key")
+
+        main.video_processor = FakeVideoProcessor()
+        task_id = "groq-invalid-key-task"
+        url = "https://youtu.be/invalid-key"
+        main.tasks[task_id] = {"status": "processing", "url": url}
+        main.processing_urls.add(url)
+
+        with patch.object(main, "GroqURLTranscriber", return_value=FakeGroq()):
+            with patch.object(main, "prepare_local_transcriber") as prepare_local:
+                asyncio.run(
+                    main.process_video_task(
+                        task_id,
+                        url,
+                        transcription_provider="groq",
+                        use_local_fallback=True,
+                        local_backend="whisper",
+                        local_model_preset="base",
+                        groq_api_key="gsk-test",
+                    )
+                )
+
+        task = main.tasks[task_id]
+        self.assertEqual(task["status"], "error")
+        self.assertFalse(task.get("used_local_fallback"))
+        prepare_local.assert_not_called()
+
+    def test_local_model_capabilities_report_missing_optional_dependencies(self):
+        import importlib.util
+
+        original_find_spec = importlib.util.find_spec
+
+        def fake_find_spec(name, package=None):
+            if name in {"faster_whisper", "nemo", "nemo.collections", "nemo.collections.asr"}:
+                return None
+            return original_find_spec(name, package)
+
+        with patch.object(main.importlib.util, "find_spec", side_effect=fake_find_spec):
+            caps = asyncio.run(main.get_local_model_capabilities())
+
+        self.assertIn("backends", caps)
+        self.assertFalse(caps["backends"]["whisper"]["available"])
+        self.assertFalse(caps["backends"]["parakeet"]["available"])
+        self.assertTrue(caps["backends"]["whisper"]["custom_supported"])
+        self.assertTrue(caps["backends"]["parakeet"]["custom_supported"])
+        self.assertTrue(caps["backends"]["whisper"]["auto_install"])
+        self.assertTrue(caps["backends"]["parakeet"]["auto_install"])
+
 
 class WindowsLauncherTests(unittest.TestCase):
     def test_windows_launcher_uses_production_mode(self):
         launcher = (PROJECT_ROOT / "start_windows.bat").read_text(encoding="utf-8")
 
         self.assertIn("python start.py --prod", launcher)
+
+
+class LocalTranscriptionHelpersTests(unittest.TestCase):
+    def test_prepare_local_transcriber_uses_selected_model_and_preloads_it(self):
+        loaded_models = []
+
+        class FakeWhisperTranscriber:
+            @staticmethod
+            def dependency_available(importlib_module=None):
+                return True
+
+            def __init__(self, model_id):
+                self.model_id = model_id
+
+            def _load_model(self):
+                loaded_models.append(self.model_id)
+
+        with patch.object(local_transcription, "WhisperLocalTranscriber", FakeWhisperTranscriber):
+            transcriber, resolved_model_id = local_transcription.prepare_local_transcriber(
+                local_backend="whisper",
+                local_model_preset="small",
+                local_model_id="",
+            )
+
+        self.assertEqual(resolved_model_id, "small")
+        self.assertEqual(transcriber.model_id, "small")
+        self.assertEqual(loaded_models, ["small"])
+
+    def test_prepare_local_transcriber_passes_custom_model_id_through(self):
+        loaded_models = []
+
+        class FakeParakeetTranscriber:
+            @staticmethod
+            def dependency_available(importlib_module=None):
+                return True
+
+            def __init__(self, model_id):
+                self.model_id = model_id
+
+            def _load_model(self):
+                loaded_models.append(self.model_id)
+
+        custom_model = "D:/models/parakeet-custom"
+        with patch.object(local_transcription, "ParakeetLocalTranscriber", FakeParakeetTranscriber):
+            transcriber, resolved_model_id = local_transcription.prepare_local_transcriber(
+                local_backend="parakeet",
+                local_model_preset="custom",
+                local_model_id=custom_model,
+            )
+
+        self.assertEqual(resolved_model_id, custom_model)
+        self.assertEqual(transcriber.model_id, custom_model)
+        self.assertEqual(loaded_models, [custom_model])
 
 
 if __name__ == "__main__":

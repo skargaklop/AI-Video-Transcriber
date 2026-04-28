@@ -13,8 +13,11 @@ An AI-powered tool to transcribe and summarize videos and podcasts — supports 
 ## ✨ Features
 
 - 🎥 **Multi-Platform Support**: Works with YouTube, TikTok, Bilibili, Apple Podcasts, SoundCloud, and 30+ more
-- ⚡ **Subtitle-First Architecture**: For YouTube videos with native or automatic subtitles, transcripts are extracted instantly — no video or audio download needed.
-- 🗣️ **Groq URL Fallback**: If subtitles are unavailable, the app resolves a temporary m4a/bestaudio URL with `yt-dlp` and sends that URL to Groq speech-to-text.
+- ⚡ **Optional Subtitle-First Architecture**: You can explicitly choose whether to try YouTube subtitles first before any transcription provider runs.
+- 🗣️ **Selectable Transcription Provider**: Explicitly choose `Groq` or `Local` for transcription.
+- 💻 **Local Model Support**: Run local Faster-Whisper presets (`tiny`, `base`, `small`, `medium`, `large-v3`) or NVIDIA Parakeet presets (`nvidia/parakeet-tdt-0.6b-v3`, `nvidia/parakeet-tdt-0.6b-v2`), or point to a custom local model id/path.
+- 📦 **Selected Model Auto-Install**: When you choose a local backend/model, the app installs missing backend packages and downloads that exact selected model automatically on first use.
+- 🔁 **Groq → Local Fallback**: Optionally fall back to the selected local backend when Groq fails with eligible transient/media-fetch errors.
 - 🤖 **Confirmed Summarization**: Summary generation is a separate user action, so transcript text is not sent to a summary provider until you click **Generate Summary**.
 - 🌍 **Multi-Language Summaries**: Generate intelligent summaries in multiple languages
 - 🔧 **Bring Your Own Model**: Configure any OpenAI-compatible API endpoint (OpenAI, OpenRouter, local LLM, etc.) directly in the UI — enter your API Base URL and API Key, then click **Fetch** to auto-discover all available models and select the one you want
@@ -29,7 +32,7 @@ An AI-powered tool to transcribe and summarize videos and podcasts — supports 
 
 - Windows 10
 - Python 3.10+
-- A Groq API key for videos without usable YouTube subtitles
+- A Groq API key if you want Groq transcription
 - An API key from any OpenAI-compatible provider for summaries (OpenAI, OpenRouter, etc.); this can be configured directly in the UI
 
 ### Installation
@@ -84,21 +87,30 @@ python start.py --prod
 ## 📖 Usage Guide
 
 1. **Enter Video URL**: Paste a video link from YouTube, Bilibili, or other supported platforms
-2. **Configure Groq if needed**: Click **AI Settings** and add a Groq API key for videos that do not expose subtitles
-3. **Configure Summary Provider**: Add your OpenAI-compatible summary endpoint, API key, and model when you want AI summaries
-4. **Start Processing**: Click the **Transcribe** button. The progress bar shows which mode is active:
-   - **⚡ Subtitle** (green) — native subtitles found, transcript extracted in seconds
-   - **Groq URL** — no subtitles available, a direct audio URL is sent to Groq for transcription
-5. **Review Transcript**: The transcript is shown and saved before any summary request is made
-6. **Generate Summary**: Choose Markdown, HTML, or both, then click **Generate Summary**
-7. **Download Files**: Save the transcript Markdown and summary Markdown/HTML
+2. **Choose a Transcription Provider**: In **AI Settings**, select `Groq` or `Local`
+3. **Choose Subtitle Behavior**: Leave `Try YouTube subtitles first` enabled for the fast path, or disable it to force the selected provider immediately
+4. **Configure Provider Settings**:
+   - **Groq**: add Groq API key, Groq model, and optional language/prompt
+   - **Local**: choose `Whisper` or `Parakeet`, then select a preset or `Custom model`
+   - **Fallback**: when provider=`Groq`, optionally enable local fallback
+5. **Configure Summary Provider**: Add your OpenAI-compatible summary endpoint, API key, and model when you want AI summaries
+6. **Start Processing**: Click the **Transcribe** button. The progress bar shows which mode is active:
+   - **Subtitle** — native/manual or automatic subtitles were used
+   - **Groq** — Groq handled transcription
+   - **Local** — a local backend handled transcription
+   - **Local fallback** — Groq failed on an eligible error and the app switched to the local backend
+7. **Review Transcript**: The transcript is shown and saved before any summary request is made
+8. **Generate Summary**: Choose Markdown, HTML, TXT, or Markdown + HTML, then click **Generate Summary**
+9. **Download Files**: Save the transcript or summary from the UI in MD/TXT/PDF, and download generated summary artifacts where available
 
 ## 🛠️ Technical Architecture
 
 ### Backend Stack
 - **FastAPI**: Modern Python web framework
 - **yt-dlp**: Subtitle extraction and direct audio URL resolution
-- **Groq API**: URL-based speech-to-text fallback
+- **Groq API**: Speech-to-text provider
+- **faster-whisper**: Optional local Whisper backend
+- **NVIDIA NeMo / Parakeet**: Optional local Parakeet backend
 - **OpenAI-compatible API**: User-confirmed summarization
 
 ### Frontend Stack
@@ -138,6 +150,15 @@ AI-Video-Transcriber/
 | `HOST` | Server address | `0.0.0.0` | No |
 | `PORT` | Server port | `8001` | No |
 
+### Local Backend Notes
+
+- The app detects CUDA automatically and uses it when available.
+- Whisper can run on CPU or CUDA.
+- Parakeet can also run on CPU, but it may be slow; the UI surfaces that warning.
+- Missing local backend packages are installed automatically when you actually run the selected local backend.
+- The exact selected local model is downloaded automatically on first use and then reused from cache.
+- Local custom models are passed through as-is. If a backend/model does not expose timestamps, transcription still succeeds and the app returns transcript text without timecodes.
+
 ### Groq Whisper Model Options
 
 | Model | Use Case |
@@ -148,7 +169,7 @@ AI-Video-Transcriber/
 ## 🔧 FAQ
 
 ### Q: Why is transcription slow?
-A: Subtitle extraction is usually fast. Groq fallback speed depends on video length, the temporary audio URL, and Groq API response time.
+A: Subtitle extraction is usually fast. Groq speed depends on video length, temporary media URL fetches, and provider response time. Local Whisper/Parakeet speed depends heavily on CPU vs CUDA.
 
 ### Q: Which video platforms are supported?
 A: All platforms supported by yt-dlp, including but not limited to: YouTube, TikTok, Facebook, Instagram, Twitter, Bilibili, Youku, iQiyi, Tencent Video, etc.
@@ -164,13 +185,13 @@ A: In most cases this is an environment configuration issue rather than a code b
 - If port 8001 is occupied, stop the old process or change `PORT`
 
 ### Q: How to handle long videos?
-A: The app first tries subtitles. If Groq fallback is needed, Groq file/URL limits and YouTube URL expiry can still apply.
+A: The app can try subtitles first, then use Groq or a local model based on your settings. If Groq is selected, Groq file/URL limits and YouTube URL expiry can still apply; local fallback can help when the failure is transient and eligible.
 
 ### Q: How to use Docker for deployment?
 A: This Windows 10 setup intentionally does not use Docker. Use `start_windows.bat` or `python start.py`.
 
 ### Q: What are the memory requirements?
-A: The new path does not load a local Whisper model. The FastAPI server is lightweight; memory mainly depends on transcript size and summary size.
+A: The FastAPI server itself is lightweight. Memory use rises if you enable local backends, especially larger Whisper models or Parakeet on GPU. CPU-only Parakeet is supported but can be slow.
 
 ### Q: Network connection errors or timeouts?
 A: If you encounter network-related errors during video downloading or API calls, try these solutions:
