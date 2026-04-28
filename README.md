@@ -54,6 +54,14 @@ cd D:\Projects\AI-Video-Transcriber
 .\start_windows.bat
 ```
 
+`start_windows.bat` supports explicit virtual-environment modes:
+
+```powershell
+.\start_windows.bat --venv auto   # default: use .venv if present, otherwise current Python
+.\start_windows.bat --venv on     # create/use .venv and install dependencies there
+.\start_windows.bat --venv off    # use the current Python interpreter without .venv
+```
+
 Manual Windows setup:
 
 ```powershell
@@ -163,6 +171,8 @@ AI-Video-Transcriber/
 ### Local Backend Notes
 
 - The app detects CUDA automatically and uses it when available.
+- The server does not require a virtual environment at runtime. It runs in whichever Python interpreter starts `start.py`.
+- The Windows launcher lets you choose whether dependencies are installed into `.venv` or your current Python environment.
 - Whisper can run on CPU or CUDA.
 - Parakeet can also run on CPU, but it may be slow; the UI surfaces that warning.
 - Missing local backend packages are installed automatically when you actually run the selected local backend.
@@ -189,8 +199,10 @@ A: AI features require an API key from any OpenAI-compatible provider (OpenAI, O
 
 ### Q: I get HTTP 500 errors when starting/using the service. Why?
 A: In most cases this is an environment configuration issue rather than a code bug. Please check:
-- Ensure a virtualenv is activated: `.\.venv\Scripts\activate`
-- Install deps inside the venv: `pip install -r requirements.txt`
+- Install dependencies into the same Python interpreter that starts the app. The simplest path is one of:
+  - `.\start_windows.bat --venv on`
+  - `.\start_windows.bat --venv off`
+  - or manual setup with `.\.venv\Scripts\activate` followed by `pip install -r requirements.txt`
 - Configure your API key in the **AI Settings** panel, or set `OPENAI_API_KEY` as an env var
 - If port 8001 is occupied, stop the old process or change `PORT`
 

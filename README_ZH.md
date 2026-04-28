@@ -26,6 +26,14 @@ cd D:\Projects\AI-Video-Transcriber
 .\start_windows.bat
 ```
 
+`start_windows.bat` 支持显式选择虚拟环境模式：
+
+```powershell
+.\start_windows.bat --venv auto
+.\start_windows.bat --venv on
+.\start_windows.bat --venv off
+```
+
 手动启动：
 
 ```powershell

@@ -825,7 +825,15 @@ class WindowsLauncherTests(unittest.TestCase):
     def test_windows_launcher_uses_production_mode(self):
         launcher = (PROJECT_ROOT / "start_windows.bat").read_text(encoding="utf-8")
 
-        self.assertIn("python start.py --prod", launcher)
+        self.assertIn("start.py --prod", launcher)
+
+    def test_windows_launcher_supports_optional_venv_modes(self):
+        launcher = (PROJECT_ROOT / "start_windows.bat").read_text(encoding="utf-8")
+
+        self.assertIn('set "VENV_MODE=auto"', launcher)
+        self.assertIn('if /I "%~1"=="--venv"', launcher)
+        self.assertIn('if /I "%VENV_MODE%"=="on"', launcher)
+        self.assertIn('if /I "%VENV_MODE%"=="off"', launcher)
 
 
 class LocalTranscriptionHelpersTests(unittest.TestCase):

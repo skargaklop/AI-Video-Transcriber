@@ -2,8 +2,60 @@
 setlocal
 cd /d "%~dp0"
 
+set "VENV_MODE=auto"
+if /I "%~1"=="--venv" (
+  if "%~2"=="" goto :usage
+  set "VENV_MODE=%~2"
+)
+
+if /I not "%VENV_MODE%"=="auto" if /I not "%VENV_MODE%"=="on" if /I not "%VENV_MODE%"=="off" goto :usage
+
+set "PYTHON_CMD=python"
+set "USING_VENV=0"
+
+if /I "%VENV_MODE%"=="off" goto :install
+
+if exist ".venv\Scripts\python.exe" (
+  set "PYTHON_CMD=%CD%\.venv\Scripts\python.exe"
+  set "USING_VENV=1"
+  goto :install
+)
+
+if /I "%VENV_MODE%"=="on" (
+  echo Creating project virtual environment...
+  py -3 -m venv .venv
+  if errorlevel 1 (
+    python -m venv .venv
+  )
+  if errorlevel 1 (
+    echo.
+    echo ERROR: failed to create .venv. Check that Python 3 is installed and the venv module is available.
+    pause
+    exit /b 1
+  )
+  set "PYTHON_CMD=%CD%\.venv\Scripts\python.exe"
+  set "USING_VENV=1"
+)
+
+:install
+if /I "%VENV_MODE%"=="off" (
+  echo Using current Python interpreter without a virtual environment.
+) else if "%USING_VENV%"=="1" (
+  echo Using project virtual environment: "%PYTHON_CMD%"
+) else (
+  echo No project virtual environment found. Using current Python interpreter.
+)
+
 echo Installing / updating dependencies...
-python -m pip install --upgrade -r requirements.txt
+"%PYTHON_CMD%" -m pip install --upgrade pip
+if errorlevel 1 (
+  echo.
+  echo ERROR: pip upgrade failed for the selected Python interpreter.
+  pause
+  exit /b 1
+)
+
+"%PYTHON_CMD%" -m pip install --upgrade -r requirements.txt
 if errorlevel 1 (
   echo.
   echo ERROR: pip install failed. Make sure Python is installed and on your PATH.
@@ -12,4 +64,19 @@ if errorlevel 1 (
 )
 
 set PORT=8001
-python start.py --prod
+"%PYTHON_CMD%" start.py --prod
+exit /b %errorlevel%
+
+:usage
+echo Usage:
+echo   start_windows.bat
+echo   start_windows.bat --venv auto
+echo   start_windows.bat --venv on
+echo   start_windows.bat --venv off
+echo.
+echo Venv modes:
+echo   auto - use .venv if it already exists, otherwise use the current Python interpreter
+echo   on   - create/use .venv and install dependencies there
+echo   off  - use the current Python interpreter without .venv
+pause
+exit /b 1
