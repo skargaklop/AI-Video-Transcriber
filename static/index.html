@@ -636,6 +636,95 @@
       font-style: italic;
     }
 
+    .prog-stage-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-top: 10px;
+      font-size: 11.5px;
+      color: var(--text-dim);
+    }
+
+    .prog-stage-current {
+      color: var(--text-on-surface);
+      font-weight: 600;
+    }
+
+    .prog-stage-elapsed {
+      white-space: nowrap;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stage-timeline {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .stage-step {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 38px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text-dim);
+      transition: border-color .2s, background .2s, color .2s;
+    }
+
+    .stage-step-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex: 0 0 auto;
+      background: var(--text-dim);
+      opacity: .65;
+    }
+
+    .stage-step-label {
+      font-size: 11.5px;
+      line-height: 1.35;
+    }
+
+    .stage-step.complete {
+      color: var(--text-on-surface);
+      border-color: rgba(106, 171, 148, .55);
+      background: rgba(106, 171, 148, .12);
+    }
+
+    .stage-step.complete .stage-step-dot {
+      background: var(--success);
+      opacity: 1;
+    }
+
+    .stage-step.active {
+      color: var(--text-on-surface);
+      border-color: rgba(138, 138, 138, .45);
+      background: rgba(138, 138, 138, .15);
+    }
+
+    .stage-step.active .stage-step-dot {
+      background: var(--accent-dim);
+      opacity: 1;
+      box-shadow: 0 0 0 4px rgba(138, 138, 138, .14);
+    }
+
+    .stage-step.error {
+      color: var(--error);
+      border-color: rgba(224, 120, 120, .45);
+      background: rgba(224, 120, 120, .08);
+    }
+
+    .stage-step.error .stage-step-dot {
+      background: var(--error);
+      opacity: 1;
+    }
+
     /* results */
     .results-panel {
       display: none;
@@ -1018,6 +1107,7 @@
             <select id="transcriptionProviderSelect" class="s-select">
               <option value="groq" data-i18n="provider_groq">Groq</option>
               <option value="local" data-i18n="provider_local">Local</option>
+              <option value="local_api" data-i18n="provider_local_api">Local API</option>
             </select>
           </div>
 
@@ -1091,6 +1181,42 @@
 
           <div class="span2 local-setting">
             <div id="localCapabilitiesDetail" class="status-note"></div>
+          </div>
+
+          <div class="span2 settings-section local-api-setting" data-i18n="local_api_transcription">Local API Transcription</div>
+
+          <div class="span2 local-api-setting">
+            <label class="s-label" for="localApiBaseUrlInput" data-i18n="local_api_base_url">Local API Base URL</label>
+            <input id="localApiBaseUrlInput" class="s-input" type="url" placeholder="http://127.0.0.1:11434/v1"
+              data-i18n-placeholder="local_api_base_url_placeholder" autocomplete="off">
+          </div>
+
+          <div class="local-api-setting">
+            <label class="s-label" for="localApiKeyInput" data-i18n="local_api_key">Local API Key</label>
+            <input id="localApiKeyInput" class="s-input" type="password" placeholder="optional"
+              data-i18n-placeholder="local_api_key_placeholder" autocomplete="new-password">
+          </div>
+
+          <div class="local-api-setting">
+            <label class="s-label" for="localApiModelInput" data-i18n="local_api_model">Local API Model</label>
+            <input id="localApiModelInput" class="s-input" type="text" placeholder="whisper-large-v3"
+              data-i18n-placeholder="local_api_model_placeholder" autocomplete="off">
+          </div>
+
+          <div class="local-api-setting">
+            <label class="s-label" for="localApiLanguageInput" data-i18n="local_api_language">Input Language</label>
+            <input id="localApiLanguageInput" class="s-input" type="text" placeholder="auto"
+              data-i18n-placeholder="local_api_language_placeholder" maxlength="16" autocomplete="off">
+          </div>
+
+          <div class="local-api-setting">
+            <label class="s-label" for="localApiPromptInput" data-i18n="local_api_prompt">Transcription Prompt</label>
+            <input id="localApiPromptInput" class="s-input" type="text" placeholder="Names, topic, spelling..."
+              data-i18n-placeholder="local_api_prompt_placeholder" autocomplete="off">
+          </div>
+
+          <div class="span2 local-api-setting">
+            <div id="localApiNotice" class="status-note" data-i18n="local_api_notice">Use an OpenAI-compatible speech-to-text API endpoint.</div>
           </div>
 
           <label class="span2 check-row">
@@ -1168,6 +1294,11 @@
           <div class="prog-fill" id="progressFill"></div>
         </div>
         <div class="prog-msg" id="progressMessage" data-i18n="preparing">Preparing…</div>
+        <div class="prog-stage-meta">
+          <div class="prog-stage-current" id="stageCurrent"></div>
+          <div class="prog-stage-elapsed" id="stageElapsed"></div>
+        </div>
+        <div class="stage-timeline" id="stageTimeline"></div>
       </div>
 
       <!-- Results -->
@@ -1305,7 +1436,7 @@
 
   </main>
 
-  <script src="/static/app.js?v=20260423-summary-pdf"></script>
+  <script src="/static/app.js?v=20260428-stage-visualization"></script>
 </body>
 
 </html>

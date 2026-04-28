@@ -18,6 +18,7 @@ class VideoTranscriber {
       enabled: false, current: 0, target: 15,
       lastServer: 0, interval: null, startTime: null, stage: 'preparing'
     };
+    this.stageTimer = null;
 
     this.i18n = {
       en: {
@@ -335,6 +336,7 @@ class VideoTranscriber {
       transcription_provider: 'Transcription Provider',
       provider_groq: 'Groq',
       provider_local: 'Local',
+      provider_local_api: 'Local API',
       try_subtitles_first: 'Try YouTube subtitles first',
       use_local_fallback: 'Use local model as fallback for Groq',
       local_transcription: 'Local Transcription',
@@ -355,10 +357,43 @@ class VideoTranscriber {
       local_backend_auto_install: 'Missing backend packages and the selected model will be installed automatically on first use.',
       local_capabilities_error: 'Failed to load local model capabilities.',
       parakeet_cpu_warning: 'Parakeet may be slow on CPU.',
+      parakeet_windows_py313_requires_build_tools: 'Automatic Parakeet install is unavailable on Windows with Python 3.13 in this runtime. It requires Microsoft C++ Build Tools or a Python 3.12 environment.',
+      local_api_transcription: 'Local API Transcription',
+      local_api_base_url: 'Local API Base URL',
+      local_api_base_url_placeholder: 'http://127.0.0.1:11434/v1',
+      local_api_key: 'Local API Key',
+      local_api_key_placeholder: 'optional',
+      local_api_model: 'Local API Model',
+      local_api_model_placeholder: 'whisper-large-v3',
+      local_api_language: 'Input Language',
+      local_api_language_placeholder: 'auto',
+      local_api_prompt: 'Transcription Prompt',
+      local_api_prompt_placeholder: 'Names, topic, spelling...',
+      local_api_notice: 'Use an OpenAI-compatible speech-to-text API endpoint.',
       mode_local: 'Local',
+      mode_local_api: 'Local API',
       mode_fallback: 'Local fallback',
       local_transcribing_audio: 'Transcribing with local model…',
       local_fallback_progress: 'Groq failed, running local fallback…',
+      active_stage: 'Active stage',
+      stage_elapsed_prefix: 'Elapsed',
+      stage_checking_subtitles: 'Checking subtitles',
+      stage_subtitle_skipped: 'Skipping subtitles',
+      stage_downloading_audio: 'Downloading audio',
+      stage_preparing_audio: 'Preparing audio',
+      stage_installing_local_backend: 'Installing local backend',
+      stage_loading_local_model: 'Loading local model',
+      stage_transcribing_local_audio: 'Running local transcription',
+      stage_saving_transcript: 'Saving transcript',
+      stage_resolving_groq_audio_url: 'Resolving Groq audio URL',
+      stage_retrying_groq_audio_url: 'Refreshing Groq audio URL',
+      stage_transcribing_groq_audio: 'Transcribing with Groq',
+      stage_downloading_groq_fallback_audio: 'Downloading fallback audio',
+      stage_uploading_groq_fallback_audio: 'Uploading fallback audio',
+      stage_switching_to_local_fallback: 'Switching to local fallback',
+      stage_sending_local_api_audio: 'Sending audio to local API',
+      stage_completed: 'Completed',
+      stage_error: 'Error',
     });
 
     Object.assign(this.i18n.ru, {
@@ -366,6 +401,7 @@ class VideoTranscriber {
       transcription_provider: 'Провайдер транскрибации',
       provider_groq: 'Groq',
       provider_local: 'Локально',
+      provider_local_api: 'Локальный API',
       try_subtitles_first: 'Сначала пробовать YouTube-субтитры',
       use_local_fallback: 'Использовать локальную модель как fallback для Groq',
       local_transcription: 'Локальная транскрибация',
@@ -386,10 +422,43 @@ class VideoTranscriber {
       local_backend_auto_install: 'Недостающие пакеты движка и выбранная модель будут установлены автоматически при первом запуске.',
       local_capabilities_error: 'Не удалось загрузить возможности локальных моделей.',
       parakeet_cpu_warning: 'Parakeet может работать медленно на CPU.',
+      parakeet_windows_py313_requires_build_tools: 'Автоматическая установка Parakeet недоступна на Windows с Python 3.13 в этом runtime. Нужны Microsoft C++ Build Tools или окружение Python 3.12.',
+      local_api_transcription: 'Транскрибация через локальный API',
+      local_api_base_url: 'Base URL локального API',
+      local_api_base_url_placeholder: 'http://127.0.0.1:11434/v1',
+      local_api_key: 'Ключ локального API',
+      local_api_key_placeholder: 'необязательно',
+      local_api_model: 'Модель локального API',
+      local_api_model_placeholder: 'whisper-large-v3',
+      local_api_language: 'Язык аудио',
+      local_api_language_placeholder: 'auto',
+      local_api_prompt: 'Промпт транскрибации',
+      local_api_prompt_placeholder: 'Имена, тема, термины...',
+      local_api_notice: 'Используйте OpenAI-совместимый speech-to-text API endpoint.',
       mode_local: 'Локально',
+      mode_local_api: 'Локальный API',
       mode_fallback: 'Локальный fallback',
       local_transcribing_audio: 'Транскрибация локальной моделью…',
       local_fallback_progress: 'Groq недоступен, запускаю локальный fallback…',
+      active_stage: 'Текущий этап',
+      stage_elapsed_prefix: 'Время',
+      stage_checking_subtitles: 'Проверка субтитров',
+      stage_subtitle_skipped: 'Пропуск субтитров',
+      stage_downloading_audio: 'Загрузка аудио',
+      stage_preparing_audio: 'Подготовка аудио',
+      stage_installing_local_backend: 'Установка локального движка',
+      stage_loading_local_model: 'Загрузка локальной модели',
+      stage_transcribing_local_audio: 'Локальная транскрибация',
+      stage_saving_transcript: 'Сохранение транскрипта',
+      stage_resolving_groq_audio_url: 'Получение аудио URL для Groq',
+      stage_retrying_groq_audio_url: 'Обновление аудио URL для Groq',
+      stage_transcribing_groq_audio: 'Транскрибация через Groq',
+      stage_downloading_groq_fallback_audio: 'Загрузка аудио для fallback',
+      stage_uploading_groq_fallback_audio: 'Загрузка файла в Groq',
+      stage_switching_to_local_fallback: 'Переключение на локальный fallback',
+      stage_sending_local_api_audio: 'Отправка аудио в локальный API',
+      stage_completed: 'Завершено',
+      stage_error: 'Ошибка',
     });
 
     Object.assign(this.i18n.uk, {
@@ -397,6 +466,7 @@ class VideoTranscriber {
       transcription_provider: 'Провайдер транскрибування',
       provider_groq: 'Groq',
       provider_local: 'Локально',
+      provider_local_api: 'Локальний API',
       try_subtitles_first: 'Спочатку пробувати YouTube-субтитри',
       use_local_fallback: 'Використовувати локальну модель як fallback для Groq',
       local_transcription: 'Локальне транскрибування',
@@ -417,10 +487,43 @@ class VideoTranscriber {
       local_backend_auto_install: 'Відсутні пакети рушія та вибрана модель будуть встановлені автоматично під час першого запуску.',
       local_capabilities_error: 'Не вдалося завантажити можливості локальних моделей.',
       parakeet_cpu_warning: 'Parakeet може працювати повільно на CPU.',
+      parakeet_windows_py313_requires_build_tools: 'Автоматичне встановлення Parakeet недоступне на Windows з Python 3.13 у цьому runtime. Потрібні Microsoft C++ Build Tools або середовище Python 3.12.',
+      local_api_transcription: 'Транскрибування через локальний API',
+      local_api_base_url: 'Base URL локального API',
+      local_api_base_url_placeholder: 'http://127.0.0.1:11434/v1',
+      local_api_key: 'Ключ локального API',
+      local_api_key_placeholder: 'необовʼязково',
+      local_api_model: 'Модель локального API',
+      local_api_model_placeholder: 'whisper-large-v3',
+      local_api_language: 'Мова аудіо',
+      local_api_language_placeholder: 'auto',
+      local_api_prompt: 'Промпт транскрибування',
+      local_api_prompt_placeholder: 'Імена, тема, терміни...',
+      local_api_notice: 'Використовуйте OpenAI-сумісний speech-to-text API endpoint.',
       mode_local: 'Локально',
+      mode_local_api: 'Локальний API',
       mode_fallback: 'Локальний fallback',
       local_transcribing_audio: 'Транскрибування локальною моделлю…',
       local_fallback_progress: 'Groq недоступний, запускаю локальний fallback…',
+      active_stage: 'Поточний етап',
+      stage_elapsed_prefix: 'Час',
+      stage_checking_subtitles: 'Перевірка субтитрів',
+      stage_subtitle_skipped: 'Пропуск субтитрів',
+      stage_downloading_audio: 'Завантаження аудіо',
+      stage_preparing_audio: 'Підготовка аудіо',
+      stage_installing_local_backend: 'Встановлення локального рушія',
+      stage_loading_local_model: 'Завантаження локальної моделі',
+      stage_transcribing_local_audio: 'Локальне транскрибування',
+      stage_saving_transcript: 'Збереження транскрипту',
+      stage_resolving_groq_audio_url: 'Отримання аудіо URL для Groq',
+      stage_retrying_groq_audio_url: 'Оновлення аудіо URL для Groq',
+      stage_transcribing_groq_audio: 'Транскрибування через Groq',
+      stage_downloading_groq_fallback_audio: 'Завантаження аудіо для fallback',
+      stage_uploading_groq_fallback_audio: 'Завантаження файла в Groq',
+      stage_switching_to_local_fallback: 'Перехід на локальний fallback',
+      stage_sending_local_api_audio: 'Надсилання аудіо в локальний API',
+      stage_completed: 'Завершено',
+      stage_error: 'Помилка',
     });
 
     this._initElements();
@@ -451,6 +554,9 @@ class VideoTranscriber {
     this.progressStatus     = document.getElementById('progressStatus');
     this.progressFill       = document.getElementById('progressFill');
     this.progressMessage    = document.getElementById('progressMessage');
+    this.stageCurrent       = document.getElementById('stageCurrent');
+    this.stageElapsed       = document.getElementById('stageElapsed');
+    this.stageTimeline      = document.getElementById('stageTimeline');
     this.resultsPanel       = document.getElementById('resultsPanel');
     this.scriptContent      = document.getElementById('scriptContent');
     this.copyTranscriptTop  = document.getElementById('copyTranscriptTop');
@@ -500,6 +606,12 @@ class VideoTranscriber {
     this.localLanguageInput = document.getElementById('localLanguageInput');
     this.localCapabilitiesNotice = document.getElementById('localCapabilitiesNotice');
     this.localCapabilitiesDetail = document.getElementById('localCapabilitiesDetail');
+    this.localApiBaseUrlInput = document.getElementById('localApiBaseUrlInput');
+    this.localApiKeyInput = document.getElementById('localApiKeyInput');
+    this.localApiModelInput = document.getElementById('localApiModelInput');
+    this.localApiLanguageInput = document.getElementById('localApiLanguageInput');
+    this.localApiPromptInput = document.getElementById('localApiPromptInput');
+    this.localApiSettings = Array.from(document.querySelectorAll('.local-api-setting'));
     this.groqSettings = Array.from(document.querySelectorAll('.groq-setting'));
     this.localSettings = Array.from(document.querySelectorAll('.local-setting'));
     this.includeTimecodesInput = document.getElementById('includeTimecodesInput');
@@ -583,6 +695,11 @@ class VideoTranscriber {
       this.trySubtitlesFirstInput,
       this.localModelIdInput,
       this.localLanguageInput,
+      this.localApiBaseUrlInput,
+      this.localApiKeyInput,
+      this.localApiModelInput,
+      this.localApiLanguageInput,
+      this.localApiPromptInput,
       this.includeTimecodesInput,
       this.summaryFormatSel,
       this.summaryPromptInput,
@@ -697,6 +814,11 @@ class VideoTranscriber {
       localModelPreset: this.localModelPresetSelect.value,
       localModelId: this.localModelIdInput.value,
       localLanguage: this.localLanguageInput.value,
+      localApiBaseUrl: this.localApiBaseUrlInput.value,
+      localApiKey: this.localApiKeyInput.value,
+      localApiModel: this.localApiModelInput.value,
+      localApiLanguage: this.localApiLanguageInput.value,
+      localApiPrompt: this.localApiPromptInput.value,
       includeTimecodes: this.includeTimecodesInput.checked,
       summaryFormat: this.summaryFormatSel.value,
       summaryPrompt: this.summaryPromptInput.value,
@@ -727,6 +849,11 @@ class VideoTranscriber {
       this._savedLocalModelPreset = s.localModelPreset || '';
       if (s.localModelId) this.localModelIdInput.value = s.localModelId;
       if (s.localLanguage) this.localLanguageInput.value = s.localLanguage;
+      if (s.localApiBaseUrl) this.localApiBaseUrlInput.value = s.localApiBaseUrl;
+      if (s.localApiKey) this.localApiKeyInput.value = s.localApiKey;
+      if (s.localApiModel) this.localApiModelInput.value = s.localApiModel;
+      if (s.localApiLanguage) this.localApiLanguageInput.value = s.localApiLanguage;
+      if (s.localApiPrompt) this.localApiPromptInput.value = s.localApiPrompt;
       this.includeTimecodesInput.checked = Boolean(s.includeTimecodes);
       if (s.summaryFormat) this.summaryFormatSel.value = s.summaryFormat;
       if (s.summaryPrompt) this.summaryPromptInput.value = s.summaryPrompt;
@@ -742,7 +869,7 @@ class VideoTranscriber {
       this._savedModel = s.model || '';
 
       // Auto-open settings if credentials were saved
-      if (s.baseUrl || s.apiKey || s.groqApiKey || s.transcriptionProvider === 'local' || s.useLocalFallback) {
+      if (s.baseUrl || s.apiKey || s.groqApiKey || s.localApiBaseUrl || s.transcriptionProvider === 'local' || s.transcriptionProvider === 'local_api' || s.useLocalFallback) {
         this.settingsBody.classList.add('open');
         this.settingsToggle.classList.add('open');
         // Attempt to re-fetch model list silently
@@ -759,14 +886,6 @@ class VideoTranscriber {
       const resp = await fetch(`${this.apiBase}/local-model-capabilities`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       this.localCapabilities = await resp.json();
-      Array.from(this.localBackendSelect?.options || []).forEach(option => {
-        const backendCaps = this.localCapabilities?.backends?.[option.value];
-        option.disabled = backendCaps ? !backendCaps.available : false;
-      });
-      if (this.localBackendSelect?.selectedOptions?.[0]?.disabled) {
-        const fallbackOption = Array.from(this.localBackendSelect.options).find(option => !option.disabled);
-        if (fallbackOption) this.localBackendSelect.value = fallbackOption.value;
-      }
       this._populateLocalModelPresets();
       this._renderLocalCapabilities();
       this._syncProviderSettings();
@@ -860,10 +979,12 @@ class VideoTranscriber {
     const useFallback = Boolean(this.useLocalFallbackInput?.checked);
     const showGroq = provider === 'groq';
     const showLocal = provider === 'local' || (provider === 'groq' && useFallback);
+    const showLocalApi = provider === 'local_api';
     const showCustomModel = this.localModelPresetSelect?.value === 'custom';
 
     this.groqSettings?.forEach(el => el.classList.toggle('setting-hidden', !showGroq));
     this.localSettings?.forEach(el => el.classList.toggle('setting-hidden', !showLocal));
+    this.localApiSettings?.forEach(el => el.classList.toggle('setting-hidden', !showLocalApi));
     if (this.useLocalFallbackRow) {
       this.useLocalFallbackRow.classList.toggle('setting-hidden', provider !== 'groq');
     }
@@ -879,6 +1000,11 @@ class VideoTranscriber {
     if (this.localModelPresetSelect) this.localModelPresetSelect.disabled = !showLocal;
     if (this.localModelIdInput) this.localModelIdInput.disabled = !showLocal || !showCustomModel;
     if (this.localLanguageInput) this.localLanguageInput.disabled = !showLocal;
+    if (this.localApiBaseUrlInput) this.localApiBaseUrlInput.disabled = !showLocalApi;
+    if (this.localApiKeyInput) this.localApiKeyInput.disabled = !showLocalApi;
+    if (this.localApiModelInput) this.localApiModelInput.disabled = !showLocalApi;
+    if (this.localApiLanguageInput) this.localApiLanguageInput.disabled = !showLocalApi;
+    if (this.localApiPromptInput) this.localApiPromptInput.disabled = !showLocalApi;
 
     this._renderLocalCapabilities();
   }
@@ -970,6 +1096,7 @@ class VideoTranscriber {
 
     if (!url) { this._showError(this.t('error_invalid_url')); return; }
 
+    this.currentTask = null;
     this._setLoading(true);
     this._hideError();
     this._showProgress();
@@ -997,6 +1124,11 @@ class VideoTranscriber {
       const localModelPreset = this.localModelPresetSelect.value;
       const localModelId = this.localModelIdInput.value.trim();
       const localLanguage = this.localLanguageInput.value.trim();
+      const localApiBaseUrl = this.localApiBaseUrlInput.value.trim().replace(/\/$/, '');
+      const localApiKey = this.localApiKeyInput.value.trim();
+      const localApiModel = this.localApiModelInput.value.trim();
+      const localApiLanguage = this.localApiLanguageInput.value.trim();
+      const localApiPrompt = this.localApiPromptInput.value.trim();
       if (groqKey) fd.append('groq_api_key', groqKey);
       if (groqModel) fd.append('groq_model', groqModel);
       if (groqLanguage && !['auto', 'auto-detect', 'autodetect', 'detect'].includes(groqLanguage.toLowerCase())) fd.append('groq_language', groqLanguage);
@@ -1008,6 +1140,11 @@ class VideoTranscriber {
       if (localModelPreset) fd.append('local_model_preset', localModelPreset);
       if (localModelId) fd.append('local_model_id', localModelId);
       if (localLanguage && !['auto', 'auto-detect', 'autodetect', 'detect'].includes(localLanguage.toLowerCase())) fd.append('local_language', localLanguage);
+      if (localApiBaseUrl) fd.append('local_api_base_url', localApiBaseUrl);
+      if (localApiKey) fd.append('local_api_key', localApiKey);
+      if (localApiModel) fd.append('local_api_model', localApiModel);
+      if (localApiLanguage && !['auto', 'auto-detect', 'autodetect', 'detect'].includes(localApiLanguage.toLowerCase())) fd.append('local_api_language', localApiLanguage);
+      if (localApiPrompt) fd.append('local_api_prompt', localApiPrompt);
       fd.append('include_timecodes', this.includeTimecodesInput.checked ? 'true' : 'false');
 
       const resp = await fetch(`${this.apiBase}/process-video`, { method: 'POST', body: fd });
@@ -1020,7 +1157,7 @@ class VideoTranscriber {
       this.currentTaskId = data.task_id;
 
       this._initSP();
-      this._updateProgress(5, this.t('preparing'), true);
+      this._updateProgress(5, this.t('preparing'));
       this._startSSE();
       this._saveSettings();
 
@@ -1041,10 +1178,10 @@ class VideoTranscriber {
         const task = JSON.parse(ev.data);
         if (task.type === 'heartbeat') return;
 
-        this._updateProgress(task.progress, task.message, true);
+        this.currentTask = task;
+        this._updateProgress(task.progress, task.message, true, task);
 
         if (task.summary_status === 'processing') {
-          this.currentTask = task;
           if (this.summaryPrompt) {
             this.summaryPrompt.style.display = 'flex';
             this.summaryPrompt.querySelector('span').textContent = task.message || this.t('generating_summary');
@@ -1078,13 +1215,17 @@ class VideoTranscriber {
           const r = await fetch(`${this.apiBase}/task-status/${this.currentTaskId}`);
           if (r.ok) {
             const task = await r.json();
+            this.currentTask = task;
+            this._updateProgress(task.progress || 0, task.message || '', true, task);
             if (task?.summary_status === 'completed') {
+              this._stopSP(); this._setLoading(false); this._hideProgress();
               this._finishSummaryLoading();
               this._showResults(task);
               this._switchTab('summary');
               return;
             }
             if (task?.summary_status === 'error') {
+              this._stopSP(); this._setLoading(false); this._hideProgress();
               this._finishSummaryLoading();
               this._showError(task.summary_error || task.message || 'Summary error');
               return;
@@ -1097,6 +1238,11 @@ class VideoTranscriber {
             if (task?.status === 'completed') {
               this._stopSP(); this._setLoading(false); this._hideProgress();
               this._showResults(task);
+              return;
+            }
+            if (task?.status === 'error') {
+              this._stopSP(); this._setLoading(false); this._hideProgress();
+              this._showError(task.error || task.message || 'Processing error');
               return;
             }
           }
@@ -1119,54 +1265,16 @@ class VideoTranscriber {
   }
 
   /* ── Progress ─────────────────────────────────────────── */
-  _updateProgress(pct, msg, fromServer = false) {
+  _updateProgress(pct, msg, fromServer = false, task = null) {
     if (fromServer) {
       this._stopSP();
       this.sp.lastServer = pct;
-      this.sp.current    = pct;
-      this._renderProgress(pct, msg);
-      this._updateStage(pct, msg);
-      this._startSP();
-    } else {
-      this._renderProgress(pct, msg);
+      this.sp.current = pct;
+      this._renderProgress(pct, msg, task);
+      return;
     }
-  }
-
-  _updateStage(pct, msg) {
-    const m = (msg || '').toLowerCase();
-
-    if (m.includes('falling back to local') || m.includes('fallback to local') || m.includes('falling back')) {
-      this.sp.stage = 'fallback';
-      this.sp.target = 72;
-      this._setModeBadge('fallback');
-    }
-    else if (m.includes('subtitle found') || m.includes('subtitle extraction succeeded') || m.includes('manual subtitles') || m.includes('automatic subtitles')) {
-      this.sp.stage = 'subtitle_found';
-      this.sp.target = 55;
-      this._setModeBadge('subtitle');
-    }
-    else if (m.includes('local ') || m.includes('whisper') || m.includes('parakeet')) {
-      this.sp.stage = 'local';
-      this.sp.target = 72;
-      this._setModeBadge('local');
-    }
-    else if (m.includes('no subtitle') || m.includes('groq') || m.includes('audio url')) {
-      this.sp.stage = 'transcribing';
-      this.sp.target = 55;
-      this._setModeBadge('groq');
-    }
-    else if (m.includes('subtitle')) {
-      this.sp.stage = 'subtitle';
-      this.sp.target = 40;
-    }
-    else if (m.includes('pars')) { this.sp.stage = 'parsing'; this.sp.target = 60; }
-    else if (m.includes('download')) { this.sp.stage = 'downloading'; this.sp.target = 60; }
-    else if (m.includes('transcrib')) { this.sp.stage = 'transcribing'; this.sp.target = 80; }
-    else if (m.includes('optimiz')) { this.sp.stage = 'optimizing'; this.sp.target = 90; }
-    else if (m.includes('summary')) { this.sp.stage = 'summarizing'; this.sp.target = 95; }
-    else if (m.includes('complet')) { this.sp.stage = 'completed'; this.sp.target = 100; }
-
-    if (pct >= this.sp.target) this.sp.target = Math.min(pct + 8, 99);
+    this.sp.current = pct;
+    this._renderProgress(pct, msg, task);
   }
 
   _setModeBadge(mode) {
@@ -1186,10 +1294,19 @@ class VideoTranscriber {
       this.modeBadge.className    = 'mode-badge fallback';
       this.modeBadge.style.display = 'inline-block';
       if (this.progressFill) this.progressFill.classList.remove('subtitle-mode');
+    } else if (mode === 'local_api') {
+      this.modeBadge.textContent = this.t('mode_local_api');
+      this.modeBadge.className = 'mode-badge local';
+      this.modeBadge.style.display = 'inline-block';
+      if (this.progressFill) this.progressFill.classList.remove('subtitle-mode');
     } else if (mode === 'groq') {
       this.modeBadge.textContent  = this.t('mode_groq');
       this.modeBadge.className    = 'mode-badge groq';
       this.modeBadge.style.display = 'inline-block';
+      if (this.progressFill) this.progressFill.classList.remove('subtitle-mode');
+    } else {
+      this.modeBadge.style.display = 'none';
+      this.modeBadge.className = 'mode-badge';
       if (this.progressFill) this.progressFill.classList.remove('subtitle-mode');
     }
   }
@@ -1199,76 +1316,172 @@ class VideoTranscriber {
     this.sp.lastServer = 0;  this.sp.startTime = Date.now(); this.sp.stage = 'preparing';
   }
   _startSP() {
-    if (this.sp.interval) clearInterval(this.sp.interval);
-    this.sp.enabled   = true;
-    this.sp.startTime = this.sp.startTime || Date.now();
-    this.sp.interval  = setInterval(() => this._tickSP(), 500);
+    this.sp.enabled = false;
   }
   _stopSP() {
     if (this.sp.interval) { clearInterval(this.sp.interval); this.sp.interval = null; }
     this.sp.enabled = false;
   }
-  _tickSP() {
-    if (!this.sp.enabled || this.sp.current >= this.sp.target) return;
-    const speeds = { subtitle: .5, parsing: .3, downloading: .18, transcribing: .14, local: .14, fallback: .18, optimizing: .22, summarizing: .28 };
-    let inc = speeds[this.sp.stage] || .2;
-    const remaining = this.sp.target - this.sp.current;
-    if (remaining < 5) inc *= .3;
-    const next = Math.min(this.sp.current + inc, this.sp.target);
-    if (next > this.sp.current) {
-      this.sp.current = next;
-      this._renderProgress(next, this._stageMsg());
-    }
-  }
-  _stageMsg() {
-    const map = {
-      subtitle:       this.t('detecting_subtitles'),
-      subtitle_found: this.t('subtitle_found'),
-      downloading:    this.t('downloading_video'),
-      parsing:        this.t('parsing_video'),
-      transcribing:   this.t('transcribing_audio'),
-      local:          this.t('local_transcribing_audio'),
-      fallback:       this.t('local_fallback_progress'),
-      optimizing:     this.t('optimizing_transcript'),
-      summarizing:    this.t('generating_summary'),
-      completed:      this.t('completed'),
-    };
-    return map[this.sp.stage] || this.t('processing');
+
+  _stageLabel(code) {
+    if (!code) return '';
+    const key = `stage_${code}`;
+    const translated = this.t(key);
+    return translated && translated !== key ? translated : code.replaceAll('_', ' ');
   }
 
-  _renderProgress(pct, msg) {
+  _defaultStageSteps(task) {
+    if (!task) return [];
+    const flow = task.stage_flow || task.transcription_provider_requested || task.transcription_provider_used || 'groq';
+    if (flow === 'subtitles') return [{ code: 'checking_subtitles' }, { code: 'saving_transcript' }, { code: 'completed' }];
+    if (flow === 'local_api') return [{ code: 'downloading_audio' }, { code: 'sending_local_api_audio' }, { code: 'saving_transcript' }, { code: 'completed' }];
+    if (flow === 'local') return [{ code: 'downloading_audio' }, { code: 'preparing_audio' }, { code: 'loading_local_model' }, { code: 'transcribing_local_audio' }, { code: 'saving_transcript' }, { code: 'completed' }];
+    if (flow === 'groq_local_fallback') return [{ code: 'resolving_groq_audio_url' }, { code: 'switching_to_local_fallback' }, { code: 'downloading_audio' }, { code: 'preparing_audio' }, { code: 'loading_local_model' }, { code: 'transcribing_local_audio' }, { code: 'saving_transcript' }, { code: 'completed' }];
+    if (flow === 'groq_file_fallback') return [{ code: 'resolving_groq_audio_url' }, { code: 'downloading_groq_fallback_audio' }, { code: 'uploading_groq_fallback_audio' }, { code: 'saving_transcript' }, { code: 'completed' }];
+    return [{ code: 'resolving_groq_audio_url' }, { code: 'transcribing_groq_audio' }, { code: 'saving_transcript' }, { code: 'completed' }];
+  }
+
+  _resolveStageData(task) {
+    if (!task) return { steps: [], currentIndex: null, stageCode: null };
+    const steps = Array.isArray(task.stage_steps) && task.stage_steps.length ? task.stage_steps : this._defaultStageSteps(task);
+    const stageCode = task.stage_code || null;
+    let currentIndex = Number.isFinite(task.stage_index) ? task.stage_index : null;
+    if (!currentIndex && stageCode) {
+      const foundIndex = steps.findIndex(step => step && step.code === stageCode);
+      currentIndex = foundIndex >= 0 ? foundIndex + 1 : null;
+    }
+    return { steps, currentIndex, stageCode };
+  }
+
+  _stageMode(task) {
+    if (!task) return null;
+    const flow = task.stage_flow || task.transcription_provider_used || task.transcription_provider_requested;
+    if (flow === 'subtitles') return 'subtitle';
+    if (flow === 'local_api') return 'local_api';
+    if (flow === 'groq_local_fallback' || task.used_local_fallback) return 'fallback';
+    if (flow === 'local') return 'local';
+    return 'groq';
+  }
+
+  _renderStageTimeline(task) {
+    if (!this.stageTimeline) return;
+    this.stageTimeline.innerHTML = '';
+    const { steps, currentIndex, stageCode } = this._resolveStageData(task);
+    if (!steps.length) return;
+
+    const isCompleted = task?.status === 'completed' || task?.summary_status === 'completed';
+    const isError = task?.status === 'error' || task?.summary_status === 'error';
+
+    steps.forEach((step, index) => {
+      const position = index + 1;
+      const item = document.createElement('div');
+      item.className = 'stage-step';
+
+      if (isError && step.code === stageCode) {
+        item.classList.add('error');
+      } else if (isCompleted && currentIndex && position <= currentIndex) {
+        item.classList.add('complete');
+      } else if (currentIndex && position < currentIndex) {
+        item.classList.add('complete');
+      } else if (currentIndex && position === currentIndex) {
+        item.classList.add('active');
+      }
+
+      const dot = document.createElement('span');
+      dot.className = 'stage-step-dot';
+      const label = document.createElement('span');
+      label.className = 'stage-step-label';
+      label.textContent = this._stageLabel(step.code);
+      item.append(dot, label);
+      this.stageTimeline.appendChild(item);
+    });
+  }
+
+  _formatStageElapsed(ms) {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    if (hours > 0) {
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  _renderStageElapsed(task = this.currentTask) {
+    if (!this.stageElapsed) return;
+    const startedAt = task?.stage_started_at ? Date.parse(task.stage_started_at) : NaN;
+    const stageTotal = task?.stage_total;
+    const stageIndex = task?.stage_index;
+    const parts = [];
+    if (Number.isFinite(stageIndex) && Number.isFinite(stageTotal)) {
+      parts.push(`${stageIndex}/${stageTotal}`);
+    }
+    if (Number.isFinite(startedAt)) {
+      parts.push(`${this.t('stage_elapsed_prefix')}: ${this._formatStageElapsed(Date.now() - startedAt)}`);
+    }
+    this.stageElapsed.textContent = parts.join(' • ');
+  }
+
+  _startStageTimer(task) {
+    this._stopStageTimer();
+    if (!task?.stage_started_at) {
+      this._renderStageElapsed(task);
+      return;
+    }
+    this._renderStageElapsed(task);
+    this.stageTimer = setInterval(() => this._renderStageElapsed(this.currentTask), 1000);
+  }
+
+  _stopStageTimer() {
+    if (this.stageTimer) {
+      clearInterval(this.stageTimer);
+      this.stageTimer = null;
+    }
+  }
+
+  _renderProgress(pct, msg, task = null) {
     const p = Math.round(pct * 10) / 10;
     this.progressStatus.textContent = `${p}%`;
     this.progressFill.style.width   = `${p}%`;
 
-    const m = (msg || '').toLowerCase();
-    let label = msg;
-    if      (m.includes('falling back to local') || m.includes('fallback to local') || m.includes('falling back')) label = this.t('local_fallback_progress');
-    else if (m.includes('subtitle found') || m.includes('subtitle extraction succeeded')) label = this.t('subtitle_found');
-    else if (m.includes('no subtitle')) label = this.t('no_subtitle');
-    else if (m.includes('subtitle')) label = this.t('detecting_subtitles');
-    else if (m.includes('local ') || m.includes('whisper') || m.includes('parakeet')) label = this.t('local_transcribing_audio');
-    else if (m.includes('groq') || m.includes('audio url')) label = this.t('transcribing_audio');
-    else if (m.includes('download')) label = this.t('downloading_video');
-    else if (m.includes('pars')) label = this.t('parsing_video');
-    else if (m.includes('transcrib')) label = this.t('transcribing_audio');
-    else if (m.includes('optimiz')) label = this.t('optimizing_transcript');
-    else if (m.includes('summary')) label = this.t('generating_summary');
-    else if (m.includes('complet')) label = this.t('completed');
-    else if (m.includes('prepar')) label = this.t('preparing');
+    if (task) {
+      const stageLabel = this._stageLabel(task.stage_code);
+      const label = stageLabel || msg || this.t('processing');
+      this.progressMessage.textContent = label;
+      this._setModeBadge(this._stageMode(task));
+      if (this.stageCurrent) {
+        this.stageCurrent.textContent = msg && msg !== label
+          ? `${this.t('active_stage')}: ${label}`
+          : (stageLabel ? `${this.t('active_stage')}: ${stageLabel}` : '');
+      }
+      this._renderStageTimeline(task);
+      this._startStageTimer(task);
+      return;
+    }
 
-    this.progressMessage.textContent = label;
+    this.progressMessage.textContent = msg || this.t('processing');
+    if (this.stageCurrent) this.stageCurrent.textContent = '';
+    if (this.stageTimeline) this.stageTimeline.innerHTML = '';
+    if (this.stageElapsed) this.stageElapsed.textContent = '';
   }
 
   _showProgress() {
+    this._stopStageTimer();
     this.emptyState.style.display    = 'none';
     this.resultsPanel.classList.remove('show');
     this.progressPanel.classList.add('show');
     // Reset mode badge & progress bar color for new task
     if (this.modeBadge) { this.modeBadge.style.display = 'none'; this.modeBadge.className = 'mode-badge'; }
     if (this.progressFill) this.progressFill.classList.remove('subtitle-mode');
+    if (this.stageCurrent) this.stageCurrent.textContent = '';
+    if (this.stageElapsed) this.stageElapsed.textContent = '';
+    if (this.stageTimeline) this.stageTimeline.innerHTML = '';
   }
-  _hideProgress() { this.progressPanel.classList.remove('show'); }
+  _hideProgress() {
+    this._stopStageTimer();
+    this.progressPanel.classList.remove('show');
+  }
 
   /* ── Results ──────────────────────────────────────────── */
   _showResults(task) {

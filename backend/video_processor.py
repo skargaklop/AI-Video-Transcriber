@@ -1,6 +1,8 @@
 import os
 import re
 import shutil
+import subprocess
+import sys
 import uuid
 import urllib.error
 import urllib.parse
@@ -14,6 +16,49 @@ logger = logging.getLogger(__name__)
 
 SUBTITLE_LANGUAGE_PRIORITY = ["en", "en-orig", "zh-Hans", "zh-Hant", "zh", "ru", "ja", "ko", "fr", "de", "es"]
 WORD_RE = re.compile(r"\S+")
+
+
+def ensure_ffmpeg_binary() -> str:
+    ffmpeg_path = shutil.which("ffmpeg")
+    if ffmpeg_path:
+        return ffmpeg_path
+
+    try:
+        import imageio_ffmpeg
+
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        pass
+
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "imageio-ffmpeg>=0.5.1"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    import imageio_ffmpeg
+
+    return imageio_ffmpeg.get_ffmpeg_exe()
+
+
+def probe_duration_with_ffmpeg(audio_file: str, ffmpeg_path: str) -> float:
+    try:
+        proc = subprocess.run(
+            [ffmpeg_path, "-i", audio_file, "-f", "null", "-"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        output = f"{proc.stdout}\n{proc.stderr}"
+        match = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", output)
+        if not match:
+            return 0.0
+        hours = int(match.group(1))
+        minutes = int(match.group(2))
+        seconds = float(match.group(3))
+        return hours * 3600 + minutes * 60 + seconds
+    except Exception:
+        return 0.0
 
 
 def _normalize_overlap_token(token: str) -> str:
@@ -176,20 +221,11 @@ class VideoProcessor:
     
     def __init__(self):
         self.ydl_opts = {
-            'format': 'bestaudio/best',  # 优先下载最佳音频源
+            'format': 'bestaudio/best',
             'outtmpl': '%(title)s.%(ext)s',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                # 直接在提取阶段转换为单声道 16k（空间小且稳定）
-                'preferredcodec': 'm4a',
-                'preferredquality': '192'
-            }],
-            # 全局FFmpeg参数：单声道 + 16k 采样率 + faststart
-            'postprocessor_args': ['-ac', '1', '-ar', '16000', '-movflags', '+faststart'],
-            'prefer_ffmpeg': True,
             'quiet': True,
             'no_warnings': True,
-            'noplaylist': True,  # 强制只下载单个视频，不下载播放列表
+            'noplaylist': True,
         }
     
     async def fetch_subtitles(self, url: str, output_dir: Path) -> tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
@@ -539,87 +575,85 @@ class VideoProcessor:
 
     async def download_and_convert(self, url: str, output_dir: Path) -> tuple[str, str]:
         """
-        下载视频并转换为m4a格式
-        
-        Args:
-            url: 视频链接
-            output_dir: 输出目录
-            
-        Returns:
-            转换后的音频文件路径
+        Download the best available audio track and normalize it to mono 16 kHz M4A.
         """
         try:
-            # 创建输出目录
             output_dir.mkdir(exist_ok=True)
-            
-            # 生成唯一的文件名
+
             unique_id = str(uuid.uuid4())[:8]
             output_template = str(output_dir / f"audio_{unique_id}.%(ext)s")
-            
-            # 更新yt-dlp选项
+
             ydl_opts = self.ydl_opts.copy()
             ydl_opts['outtmpl'] = output_template
-            
-            logger.info(f"开始下载视频: {url}")
-            
-            # 直接同步执行，不使用线程池
-            # 在FastAPI中，IO密集型操作可以直接await
+
+            logger.info("Downloading audio for local transcription: %s", url)
+
             import asyncio
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # 获取视频信息（放到线程池避免阻塞事件循环）
                 info = await asyncio.to_thread(ydl.extract_info, url, False)
                 video_title = info.get('title', 'unknown')
                 expected_duration = info.get('duration') or 0
-                logger.info(f"视频标题: {video_title}")
-                
-                # 下载视频（放到线程池避免阻塞事件循环）
+                logger.info("Downloaded video info: %s", video_title)
                 await asyncio.to_thread(ydl.download, [url])
-            
-            # 查找生成的m4a文件
+
+            source_audio_file = ''
+            for ext in ['m4a', 'webm', 'mp4', 'mp3', 'wav', 'opus', 'ogg']:
+                potential_file = str(output_dir / f"audio_{unique_id}.{ext}")
+                if os.path.exists(potential_file):
+                    source_audio_file = potential_file
+                    break
+            if not source_audio_file:
+                raise Exception('Audio file was not downloaded')
+
+            ffmpeg_path = ensure_ffmpeg_binary()
             audio_file = str(output_dir / f"audio_{unique_id}.m4a")
-            
-            if not os.path.exists(audio_file):
-                # 如果m4a文件不存在，查找其他音频格式
-                for ext in ['webm', 'mp4', 'mp3', 'wav']:
-                    potential_file = str(output_dir / f"audio_{unique_id}.{ext}")
-                    if os.path.exists(potential_file):
-                        audio_file = potential_file
-                        break
-                else:
-                    raise Exception("未找到下载的音频文件")
-            
-            # 校验时长，如果和源视频差异较大，尝试一次ffmpeg规范化重封装
-            try:
-                import subprocess, shlex
-                probe_cmd = f"ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {shlex.quote(audio_file)}"
-                out = subprocess.check_output(probe_cmd, shell=True).decode().strip()
-                actual_duration = float(out) if out else 0.0
-            except Exception as _:
-                actual_duration = 0.0
-            
+            convert_cmd = [
+                ffmpeg_path,
+                '-y',
+                '-i', source_audio_file,
+                '-vn',
+                '-ac', '1',
+                '-ar', '16000',
+                '-c:a', 'aac',
+                '-b:a', '192k',
+                '-movflags', '+faststart',
+                audio_file,
+            ]
+            subprocess.run(convert_cmd, check=True, capture_output=True, text=True)
+
+            actual_duration = probe_duration_with_ffmpeg(audio_file, ffmpeg_path)
             if expected_duration and actual_duration and abs(actual_duration - expected_duration) / expected_duration > 0.1:
                 logger.warning(
-                    f"音频时长异常，期望{expected_duration}s，实际{actual_duration}s，尝试重封装修复…"
+                    "Audio duration mismatch detected (expected %.2fs, actual %.2fs), repackaging output",
+                    expected_duration,
+                    actual_duration,
                 )
+                fixed_path = str(output_dir / f"audio_{unique_id}_fixed.m4a")
+                fix_cmd = [
+                    ffmpeg_path,
+                    '-y',
+                    '-i', audio_file,
+                    '-vn',
+                    '-c:a', 'aac',
+                    '-b:a', '160k',
+                    '-movflags', '+faststart',
+                    fixed_path,
+                ]
+                subprocess.run(fix_cmd, check=True, capture_output=True, text=True)
+                audio_file = fixed_path
+
+            if source_audio_file != audio_file and os.path.exists(source_audio_file):
                 try:
-                    fixed_path = str(output_dir / f"audio_{unique_id}_fixed.m4a")
-                    fix_cmd = f"ffmpeg -y -i {shlex.quote(audio_file)} -vn -c:a aac -b:a 160k -movflags +faststart {shlex.quote(fixed_path)}"
-                    subprocess.check_call(fix_cmd, shell=True)
-                    # 用修复后的文件替换
-                    audio_file = fixed_path
-                    # 重新探测
-                    out2 = subprocess.check_output(probe_cmd.replace(shlex.quote(audio_file.rsplit('.',1)[0]+'.m4a'), shlex.quote(audio_file)), shell=True).decode().strip()
-                    actual_duration2 = float(out2) if out2 else 0.0
-                    logger.info(f"重封装完成，新时长≈{actual_duration2:.2f}s")
-                except Exception as e:
-                    logger.error(f"重封装失败：{e}")
-            
-            logger.info(f"音频文件已保存: {audio_file}")
+                    os.remove(source_audio_file)
+                except OSError:
+                    logger.debug('Could not remove source audio file: %s', source_audio_file)
+
+            logger.info("Normalized local transcription audio saved: %s", audio_file)
             return audio_file, video_title
-            
+
         except Exception as e:
-            logger.error(f"下载视频失败: {str(e)}")
-            raise Exception(f"下载视频失败: {str(e)}")
+            logger.error("Audio download/conversion failed: %s", e)
+            raise Exception(f"Audio download/conversion failed: {e}") from e
 
     async def download_audio_for_upload(self, url: str, output_dir: Path) -> tuple[str, str]:
         """

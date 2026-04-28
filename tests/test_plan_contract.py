@@ -488,6 +488,83 @@ class PlanContractTests(unittest.TestCase):
         self.assertIn("Local whisper transcription", task["transcript"])
         self.assertEqual(fake_local.calls[0]["language"], "en")
 
+    def test_local_provider_reports_detailed_stage_metadata_while_preparing_model(self):
+        class FakeVideoProcessor:
+            async def fetch_subtitles(self, url, output_dir):
+                raise AssertionError("subtitle stage should be skipped")
+
+            async def download_and_convert(self, url, output_dir):
+                audio_path = output_dir / "local_stage_test.m4a"
+                audio_path.write_bytes(b"fake audio")
+                return str(audio_path), "Local Stage Video"
+
+        class FakeLocalTranscriber:
+            async def transcribe(self, audio_path, language=""):
+                return {
+                    "markdown": "# Video Transcription\n\nLocal parakeet transcription",
+                    "language": "en",
+                    "warnings": [],
+                    "runtime": "cpu",
+                    "timestamps_supported": True,
+                }
+
+        stage_events = []
+
+        async def fake_broadcast(task_id, task_data):
+            stage_events.append(
+                {
+                    "flow": task_data.get("stage_flow"),
+                    "code": task_data.get("stage_code"),
+                    "message": task_data.get("message"),
+                    "index": task_data.get("stage_index"),
+                    "total": task_data.get("stage_total"),
+                }
+            )
+
+        main.video_processor = FakeVideoProcessor()
+        task_id = "local-stage-task"
+        url = "https://youtu.be/local-stage"
+        main.tasks[task_id] = {"status": "processing", "url": url}
+        main.processing_urls.add(url)
+
+        with patch.object(main, "broadcast_task_update", side_effect=fake_broadcast):
+            with patch.object(main, "backend_dependencies_available", return_value=False):
+                with patch.object(main, "ensure_backend_dependencies") as ensure_deps:
+                    with patch.object(main, "ensure_backend_audio_file", side_effect=lambda audio_path, backend, output_dir: audio_path):
+                        with patch.object(main, "prepare_local_transcriber", return_value=(FakeLocalTranscriber(), "nvidia/parakeet-tdt-0.6b-v3")) as prepare_local:
+                            asyncio.run(
+                                main.process_video_task(
+                                    task_id,
+                                    url,
+                                    transcription_provider="local",
+                                    try_subtitles_first=False,
+                                    local_backend="parakeet",
+                                    local_model_preset="nvidia/parakeet-tdt-0.6b-v3",
+                                )
+                            )
+
+        task = main.tasks[task_id]
+        codes = [event["code"] for event in stage_events if event.get("code")]
+
+        self.assertEqual(task["status"], "completed")
+        self.assertEqual(task["stage_flow"], "local")
+        self.assertEqual(task["stage_code"], "completed")
+        self.assertTrue(task.get("stage_started_at"))
+        self.assertGreaterEqual(task.get("stage_total") or 0, 8)
+        self.assertEqual(task.get("stage_index"), task.get("stage_total"))
+        self.assertEqual(task["local_backend_used"], "parakeet")
+        self.assertEqual(task["local_model_used"], "nvidia/parakeet-tdt-0.6b-v3")
+        self.assertIn("subtitle_skipped", codes)
+        self.assertIn("downloading_audio", codes)
+        self.assertIn("preparing_audio", codes)
+        self.assertIn("installing_local_backend", codes)
+        self.assertIn("loading_local_model", codes)
+        self.assertIn("transcribing_local_audio", codes)
+        self.assertIn("saving_transcript", codes)
+        self.assertIn("completed", codes)
+        ensure_deps.assert_called_once_with("parakeet")
+        prepare_local.assert_called_once()
+
     def test_local_provider_uses_subtitles_first_when_enabled(self):
         class FakeVideoProcessor:
             def __init__(self):
@@ -534,6 +611,56 @@ class PlanContractTests(unittest.TestCase):
         self.assertEqual(main.video_processor.subtitle_calls, 1)
         self.assertEqual(main.video_processor.download_calls, 0)
         prepare_local.assert_not_called()
+
+    def test_local_api_provider_uses_selected_api_model(self):
+        class FakeVideoProcessor:
+            async def fetch_subtitles(self, url, output_dir):
+                return None, "Local API Video", None, None
+
+            async def download_and_convert(self, url, output_dir):
+                audio_path = output_dir / "local_api_audio.m4a"
+                audio_path.write_bytes(b"fake local api audio")
+                return str(audio_path), "Local API Video"
+
+        class FakeLocalAPI:
+            def __init__(self, base_url, model, api_key="", endpoint_path="/audio/transcriptions", timeout=300):
+                self.base_url = base_url
+                self.model = model
+                self.api_key = api_key
+
+            async def transcribe_file(self, audio_file, language="", prompt=""):
+                return {
+                    "markdown": "# Video Transcription\n\nRecovered by local api",
+                    "language": "en",
+                    "model": self.model,
+                }
+
+        main.video_processor = FakeVideoProcessor()
+        task_id = "local-api-task"
+        url = "https://youtu.be/local-api"
+        main.tasks[task_id] = {"status": "processing", "url": url}
+        main.processing_urls.add(url)
+
+        with patch.object(main, "LocalAPITranscriber", FakeLocalAPI):
+            asyncio.run(
+                main.process_video_task(
+                    task_id,
+                    url,
+                    transcription_provider="local_api",
+                    try_subtitles_first=False,
+                    local_api_base_url="http://127.0.0.1:11434/v1",
+                    local_api_model="whisper-large-v3",
+                    local_api_language="en",
+                    local_api_prompt="names",
+                )
+            )
+
+        task = main.tasks[task_id]
+        self.assertEqual(task["status"], "completed")
+        self.assertEqual(task["transcription_provider_used"], "local_api")
+        self.assertEqual(task["transcript_source"], "local_api_audio_file")
+        self.assertEqual(task["local_model_used"], "whisper-large-v3")
+        self.assertIn("Recovered by local api", task["transcript"])
 
     def test_groq_provider_can_fall_back_to_local_backend_for_eligible_errors(self):
         class FakeVideoProcessor:
@@ -666,6 +793,29 @@ class PlanContractTests(unittest.TestCase):
         self.assertTrue(caps["backends"]["whisper"]["auto_install"])
         self.assertTrue(caps["backends"]["parakeet"]["auto_install"])
 
+    def test_local_model_capabilities_report_parakeet_auto_install_unsupported_on_windows_py313(self):
+        import importlib.util
+
+        original_find_spec = importlib.util.find_spec
+
+        def fake_find_spec(name, package=None):
+            if name in {"nemo", "nemo.collections", "nemo.collections.asr"}:
+                return None
+            return original_find_spec(name, package)
+
+        with patch.object(main.importlib.util, "find_spec", side_effect=fake_find_spec):
+            with patch.object(local_transcription.sys, "platform", "win32"):
+                with patch.object(local_transcription.sys, "version_info", (3, 13, 0)):
+                    caps = asyncio.run(main.get_local_model_capabilities())
+
+        parakeet_caps = caps["backends"]["parakeet"]
+        self.assertFalse(parakeet_caps["available"])
+        self.assertFalse(parakeet_caps["auto_install"])
+        self.assertEqual(
+            parakeet_caps["warning_code"],
+            "parakeet_windows_py313_requires_build_tools",
+        )
+
 
 class WindowsLauncherTests(unittest.TestCase):
     def test_windows_launcher_uses_production_mode(self):
@@ -725,6 +875,15 @@ class LocalTranscriptionHelpersTests(unittest.TestCase):
         self.assertEqual(resolved_model_id, custom_model)
         self.assertEqual(transcriber.model_id, custom_model)
         self.assertEqual(loaded_models, [custom_model])
+
+    def test_install_backend_dependencies_rejects_parakeet_auto_install_on_windows_py313(self):
+        with patch.object(local_transcription.sys, "platform", "win32"):
+            with patch.object(local_transcription.sys, "version_info", (3, 13, 0)):
+                with self.assertRaises(local_transcription.LocalTranscriptionError) as ctx:
+                    local_transcription.install_backend_dependencies("parakeet")
+
+        self.assertIn("Python 3.13", str(ctx.exception))
+        self.assertIn("Microsoft C++ Build Tools", str(ctx.exception))
 
 
 if __name__ == "__main__":

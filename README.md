@@ -4,11 +4,21 @@
 
 English | [中文](README_ZH.md)
 
+Fork of [wendy7756/AI-Video-Transcriber](https://github.com/wendy7756/AI-Video-Transcriber)
+
 An AI-powered tool to transcribe and summarize videos and podcasts — supports YouTube, TikTok, Bilibili, Apple Podcasts, SoundCloud, and 30+ platforms.
 
 ![Interface](en-video.png)
 
 </div>
+
+## What Changed In This Fork
+
+- Windows-first local setup and launcher flow
+- Subtitle-first transcription with explicit provider selection
+- Groq transcription, local Whisper/Parakeet support, and Groq-to-local fallback
+- User-configurable summary provider via OpenAI-compatible APIs
+- Additional transcript/summary export and UI workflow improvements
 
 ## ✨ Features
 

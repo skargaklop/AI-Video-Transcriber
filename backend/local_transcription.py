@@ -7,6 +7,7 @@ from typing import Any
 
 from parakeet_transcriber import PARAKEET_MODEL_PRESETS, ParakeetLocalTranscriber
 from transcriber import WHISPER_MODEL_PRESETS, WhisperLocalTranscriber
+from video_processor import ensure_ffmpeg_binary
 
 
 logger = logging.getLogger(__name__)
@@ -24,11 +25,47 @@ class LocalTranscriptionError(Exception):
     """Raised when local transcription cannot run."""
 
 
+def _python_version_tuple() -> tuple[int, int]:
+    version_info = getattr(sys, "version_info", (0, 0))
+    try:
+        major = int(version_info[0])
+        minor = int(version_info[1])
+    except Exception:
+        major, minor = 0, 0
+    return major, minor
+
+
+def _backend_install_constraints(backend: str) -> dict[str, Any]:
+    normalized_backend = (backend or DEFAULT_LOCAL_BACKEND).strip().lower()
+    if normalized_backend != "parakeet":
+        return {"auto_install_supported": True, "warning_code": "", "message": ""}
+
+    major, minor = _python_version_tuple()
+    if sys.platform.startswith("win") and (major, minor) >= (3, 13):
+        return {
+            "auto_install_supported": False,
+            "warning_code": "parakeet_windows_py313_requires_build_tools",
+            "message": (
+                "Automatic Parakeet dependency installation is not supported on Windows with Python 3.13 in this app runtime. "
+                "The NeMo ASR dependency chain pulls editdistance, which has no prebuilt CPython 3.13 Windows wheel, "
+                "so pip falls back to a source build that requires Microsoft C++ Build Tools. "
+                "Use the Whisper backend, install Microsoft C++ Build Tools and the Parakeet dependencies manually, "
+                "or run Parakeet from a Python 3.12 environment."
+            ),
+        }
+
+    return {"auto_install_supported": True, "warning_code": "", "message": ""}
+
+
 def install_backend_dependencies(backend: str) -> None:
     normalized_backend = (backend or DEFAULT_LOCAL_BACKEND).strip().lower()
     packages = LOCAL_BACKEND_PACKAGES.get(normalized_backend)
     if not packages:
         raise LocalTranscriptionError(f"Unsupported local backend: {backend}")
+
+    constraints = _backend_install_constraints(normalized_backend)
+    if not constraints["auto_install_supported"]:
+        raise LocalTranscriptionError(constraints["message"])
 
     logger.info("Installing missing dependencies for local backend: %s", normalized_backend)
     for package in packages:
@@ -48,11 +85,7 @@ def install_backend_dependencies(backend: str) -> None:
 
 def ensure_backend_dependencies(backend: str, importlib_module: Any = importlib) -> None:
     normalized_backend = (backend or DEFAULT_LOCAL_BACKEND).strip().lower()
-    availability_checks = {
-        "whisper": WhisperLocalTranscriber.dependency_available,
-        "parakeet": ParakeetLocalTranscriber.dependency_available,
-    }
-    checker = availability_checks.get(normalized_backend)
+    checker = _dependency_checker(normalized_backend)
     if checker is None:
         raise LocalTranscriptionError(f"Unsupported local backend: {backend}")
     if checker(importlib_module):
@@ -74,10 +107,26 @@ def detect_runtime(importlib_module: Any = importlib) -> str:
         return "cpu"
 
 
+def _dependency_checker(backend: str):
+    availability_checks = {
+        "whisper": WhisperLocalTranscriber.dependency_available,
+        "parakeet": ParakeetLocalTranscriber.dependency_available,
+    }
+    return availability_checks.get((backend or DEFAULT_LOCAL_BACKEND).strip().lower())
+
+
+def backend_dependencies_available(backend: str, importlib_module: Any = importlib) -> bool:
+    checker = _dependency_checker(backend)
+    if checker is None:
+        raise LocalTranscriptionError(f"Unsupported local backend: {backend}")
+    return checker(importlib_module)
+
+
 def get_local_capabilities(importlib_module: Any = importlib) -> dict[str, Any]:
     runtime = detect_runtime(importlib_module)
     whisper_available = WhisperLocalTranscriber.dependency_available(importlib_module)
     parakeet_available = ParakeetLocalTranscriber.dependency_available(importlib_module)
+    parakeet_constraints = _backend_install_constraints("parakeet")
 
     return {
         "runtime": runtime,
@@ -95,12 +144,16 @@ def get_local_capabilities(importlib_module: Any = importlib) -> dict[str, Any]:
             "parakeet": {
                 "available": parakeet_available,
                 "runtime": runtime,
-                "warning_code": "parakeet_cpu_slow" if parakeet_available and runtime == "cpu" else "",
-                "warning": "",
+                "warning_code": (
+                    "parakeet_cpu_slow"
+                    if parakeet_available and runtime == "cpu"
+                    else parakeet_constraints["warning_code"]
+                ),
+                "warning": "" if parakeet_available else parakeet_constraints["message"],
                 "presets": PARAKEET_MODEL_PRESETS,
                 "default_preset": DEFAULT_PARAKEET_MODEL,
                 "custom_supported": True,
-                "auto_install": True,
+                "auto_install": parakeet_constraints["auto_install_supported"],
             },
         },
     }
@@ -152,6 +205,12 @@ def prepare_local_transcriber(
     return transcriber, resolved_model_id
 
 
+def preload_local_transcriber(transcriber: Any) -> None:
+    preload = getattr(transcriber, "_load_model", None)
+    if callable(preload):
+        preload()
+
+
 def ensure_backend_audio_file(audio_path: str, backend: str, output_dir: Path) -> str:
     normalized_backend = (backend or DEFAULT_LOCAL_BACKEND).strip().lower()
     if normalized_backend != "parakeet":
@@ -164,7 +223,7 @@ def ensure_backend_audio_file(audio_path: str, backend: str, output_dir: Path) -
     output_dir.mkdir(exist_ok=True)
     target = output_dir / f"{source.stem}_parakeet.wav"
     cmd = [
-        "ffmpeg",
+        ensure_ffmpeg_binary(),
         "-y",
         "-i",
         str(source),
@@ -177,8 +236,6 @@ def ensure_backend_audio_file(audio_path: str, backend: str, output_dir: Path) -
 
     try:
         subprocess.run(cmd, check=True, capture_output=True, text=True)
-    except FileNotFoundError as exc:
-        raise LocalTranscriptionError("ffmpeg is required to convert audio for local Parakeet transcription.") from exc
     except subprocess.CalledProcessError as exc:
         raise LocalTranscriptionError(f"Failed to convert audio for Parakeet: {exc.stderr or exc}") from exc
 

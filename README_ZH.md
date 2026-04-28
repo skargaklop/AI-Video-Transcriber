@@ -1,5 +1,15 @@
 # AI Video Transcriber
 
+Fork of [wendy7756/AI-Video-Transcriber](https://github.com/wendy7756/AI-Video-Transcriber)
+
+## What Changed In This Fork
+
+- Windows-first local setup and launcher flow
+- Subtitle-first transcription with explicit provider selection
+- Groq transcription, local Whisper/Parakeet support, and Groq-to-local fallback
+- User-configurable summary provider via OpenAI-compatible APIs
+- Additional transcript/summary export and UI workflow improvements
+
 本分支面向 Windows 10 本地运行，不使用 Docker。
 
 ## 功能
