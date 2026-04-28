@@ -532,16 +532,18 @@ class PlanContractTests(unittest.TestCase):
                 with patch.object(main, "ensure_backend_dependencies") as ensure_deps:
                     with patch.object(main, "ensure_backend_audio_file", side_effect=lambda audio_path, backend, output_dir: audio_path):
                         with patch.object(main, "prepare_local_transcriber", return_value=(FakeLocalTranscriber(), "nvidia/parakeet-tdt-0.6b-v3")) as prepare_local:
-                            asyncio.run(
-                                main.process_video_task(
-                                    task_id,
-                                    url,
-                                    transcription_provider="local",
-                                    try_subtitles_first=False,
-                                    local_backend="parakeet",
-                                    local_model_preset="nvidia/parakeet-tdt-0.6b-v3",
-                                )
-                            )
+                            with patch.object(local_transcription.sys, "platform", "linux"):
+                                with patch.object(local_transcription.sys, "version_info", (3, 12, 0)):
+                                    asyncio.run(
+                                        main.process_video_task(
+                                            task_id,
+                                            url,
+                                            transcription_provider="local",
+                                            try_subtitles_first=False,
+                                            local_backend="parakeet",
+                                            local_model_preset="nvidia/parakeet-tdt-0.6b-v3",
+                                        )
+                                    )
 
         task = main.tasks[task_id]
         codes = [event["code"] for event in stage_events if event.get("code")]
@@ -783,7 +785,9 @@ class PlanContractTests(unittest.TestCase):
             return original_find_spec(name, package)
 
         with patch.object(main.importlib.util, "find_spec", side_effect=fake_find_spec):
-            caps = asyncio.run(main.get_local_model_capabilities())
+            with patch.object(local_transcription.sys, "platform", "linux"):
+                with patch.object(local_transcription.sys, "version_info", (3, 12, 0)):
+                    caps = asyncio.run(main.get_local_model_capabilities())
 
         self.assertIn("backends", caps)
         self.assertFalse(caps["backends"]["whisper"]["available"])

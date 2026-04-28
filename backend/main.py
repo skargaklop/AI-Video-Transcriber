@@ -22,9 +22,11 @@ from local_api_transcriber import LocalAPITranscriber, LocalAPITranscriptionErro
 from local_transcription import (
     DEFAULT_LOCAL_BACKEND,
     backend_dependencies_available,
+    backend_install_constraints,
     ensure_backend_audio_file,
     ensure_backend_dependencies,
     get_local_capabilities,
+    LocalTranscriptionError,
     prepare_local_transcriber,
     resolve_local_model_id,
 )
@@ -280,13 +282,19 @@ async def _run_local_transcription(
     stage_flow: str = "local",
     try_subtitles_first: bool = True,
 ) -> dict:
+    install_constraints = backend_install_constraints(local_backend)
+    dependency_stage_code = (
+        install_constraints["warning_code"]
+        if (not backend_dependencies_available(local_backend) and not install_constraints["auto_install_supported"] and install_constraints["warning_code"])
+        else "installing_local_backend"
+    )
     stage_steps = _make_stage_steps(
         *(
             ["checking_subtitles"] if try_subtitles_first else ["subtitle_skipped"]
         ),
         "downloading_audio",
         "preparing_audio",
-        *([] if backend_dependencies_available(local_backend) else ["installing_local_backend"]),
+        *([] if backend_dependencies_available(local_backend) else [dependency_stage_code]),
         "loading_local_model",
         "transcribing_local_audio",
         "saving_transcript",
@@ -319,11 +327,19 @@ async def _run_local_transcription(
         )
 
         if not backend_dependencies_available(local_backend):
+            if not install_constraints["auto_install_supported"]:
+                await _push_task_update(
+                    task_id,
+                    progress=60,
+                    message=install_constraints["message"],
+                    stage_code=dependency_stage_code,
+                )
+                raise LocalTranscriptionError(install_constraints["message"])
             await _push_task_update(
                 task_id,
                 progress=60,
                 message=f"Installing local {local_backend} dependencies for model {resolved_model_id}...",
-                stage_code="installing_local_backend",
+                stage_code=dependency_stage_code,
             )
             await asyncio.to_thread(ensure_backend_dependencies, local_backend)
 

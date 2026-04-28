@@ -57,6 +57,10 @@ def _backend_install_constraints(backend: str) -> dict[str, Any]:
     return {"auto_install_supported": True, "warning_code": "", "message": ""}
 
 
+def backend_install_constraints(backend: str) -> dict[str, Any]:
+    return dict(_backend_install_constraints(backend))
+
+
 def install_backend_dependencies(backend: str) -> None:
     normalized_backend = (backend or DEFAULT_LOCAL_BACKEND).strip().lower()
     packages = LOCAL_BACKEND_PACKAGES.get(normalized_backend)

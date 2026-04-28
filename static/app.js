@@ -358,6 +358,7 @@ class VideoTranscriber {
       local_capabilities_error: 'Failed to load local model capabilities.',
       parakeet_cpu_warning: 'Parakeet may be slow on CPU.',
       parakeet_windows_py313_requires_build_tools: 'Automatic Parakeet install is unavailable on Windows with Python 3.13 in this runtime. It requires Microsoft C++ Build Tools or a Python 3.12 environment.',
+      stage_parakeet_windows_py313_requires_build_tools: 'Microsoft C++ Build Tools are required for Parakeet on Windows with Python 3.13',
       local_api_transcription: 'Local API Transcription',
       local_api_base_url: 'Local API Base URL',
       local_api_base_url_placeholder: 'http://127.0.0.1:11434/v1',
@@ -423,6 +424,7 @@ class VideoTranscriber {
       local_capabilities_error: 'Не удалось загрузить возможности локальных моделей.',
       parakeet_cpu_warning: 'Parakeet может работать медленно на CPU.',
       parakeet_windows_py313_requires_build_tools: 'Автоматическая установка Parakeet недоступна на Windows с Python 3.13 в этом runtime. Нужны Microsoft C++ Build Tools или окружение Python 3.12.',
+      stage_parakeet_windows_py313_requires_build_tools: 'Для Parakeet на Windows с Python 3.13 нужны Microsoft C++ Build Tools',
       local_api_transcription: 'Транскрибация через локальный API',
       local_api_base_url: 'Base URL локального API',
       local_api_base_url_placeholder: 'http://127.0.0.1:11434/v1',
@@ -488,6 +490,7 @@ class VideoTranscriber {
       local_capabilities_error: 'Не вдалося завантажити можливості локальних моделей.',
       parakeet_cpu_warning: 'Parakeet може працювати повільно на CPU.',
       parakeet_windows_py313_requires_build_tools: 'Автоматичне встановлення Parakeet недоступне на Windows з Python 3.13 у цьому runtime. Потрібні Microsoft C++ Build Tools або середовище Python 3.12.',
+      stage_parakeet_windows_py313_requires_build_tools: 'Для Parakeet на Windows з Python 3.13 потрібні Microsoft C++ Build Tools',
       local_api_transcription: 'Транскрибування через локальний API',
       local_api_base_url: 'Base URL локального API',
       local_api_base_url_placeholder: 'http://127.0.0.1:11434/v1',
@@ -967,6 +970,8 @@ class VideoTranscriber {
     }
     if (caps.warning_code === 'parakeet_cpu_slow') {
       parts.push(this.t('parakeet_cpu_warning'));
+    } else if (caps.warning_code === 'parakeet_windows_py313_requires_build_tools') {
+      parts.push(this.t('parakeet_windows_py313_requires_build_tools'));
     } else if (caps.warning) {
       parts.push(caps.warning);
     }
@@ -1260,7 +1265,7 @@ class VideoTranscriber {
   _finishSummaryLoading() {
     if (!this.generateSummaryBtn) return;
     this.generateSummaryBtn.disabled = false;
-    this.generateSummaryBtn.innerHTML = this._summaryButtonOriginal || `<i class="fas fa-wand-magic-sparkles"></i> <span>${this.t('generate_summary')}</span>`;
+    this.generateSummaryBtn.innerHTML = this._summaryButtonOriginal || `<i class="fas fa-wand-magic-sparkles"></i> <span data-i18n="generate_summary">${this.t('generate_summary')}</span>`;
     this._summaryButtonOriginal = null;
   }
 
@@ -1814,8 +1819,8 @@ class VideoTranscriber {
   _setLoading(on) {
     this.submitBtn.disabled = on;
     this.submitBtn.innerHTML = on
-      ? `<span class="spinner"></span> ${this.t('processing')}`
-      : `<i class="fas fa-search"></i> <span>${this.t('start_transcription')}</span>`;
+      ? `<span class="spinner"></span> <span data-i18n="processing">${this.t('processing')}</span>`
+      : `<i class="fas fa-search"></i> <span data-i18n="start_transcription">${this.t('start_transcription')}</span>`;
   }
 
   _showError(msg) {
