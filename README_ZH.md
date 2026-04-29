@@ -1,8 +1,6 @@
 # AI Video Transcriber
 
-Fork of [wendy7756/AI-Video-Transcriber](https://github.com/wendy7756/AI-Video-Transcriber)
-
-## What Changed In This Fork
+## Project Highlights
 
 - Windows-first local setup and launcher flow
 - Subtitle-first transcription with explicit provider selection

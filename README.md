@@ -4,7 +4,6 @@
 
 English | [中文](README_ZH.md)
 
-Fork of [wendy7756/AI-Video-Transcriber](https://github.com/wendy7756/AI-Video-Transcriber)
 
 An AI-powered tool to transcribe and summarize videos and podcasts — supports YouTube, TikTok, Bilibili, Apple Podcasts, SoundCloud, and 30+ platforms.
 
@@ -12,7 +11,7 @@ An AI-powered tool to transcribe and summarize videos and podcasts — supports 
 
 </div>
 
-## What Changed In This Fork
+## Project Highlights
 
 - Windows-first local setup and launcher flow
 - Subtitle-first transcription with explicit provider selection
@@ -34,7 +33,6 @@ An AI-powered tool to transcribe and summarize videos and podcasts — supports 
 - 📄 **Markdown and HTML Exports**: Save transcripts as Markdown and summaries as Markdown, HTML, or both
 - 📱 **Mobile-Friendly**: Perfect support for mobile devices
 
-[![Star History Chart](https://api.star-history.com/svg?repos=wendy7756/AI-Video-Transcriber&type=Date)](https://star-history.com/#wendy7756/AI-Video-Transcriber&Date)
 
 ## 🚀 Quick Start
 
@@ -46,8 +44,6 @@ An AI-powered tool to transcribe and summarize videos and podcasts — supports 
 - An API key from any OpenAI-compatible provider for summaries (OpenAI, OpenRouter, etc.); this can be configured directly in the UI
 
 ### Installation
-
-This fork is intended for local Windows 10 usage without Docker.
 
 ```powershell
 cd D:\Projects\AI-Video-Transcriber
