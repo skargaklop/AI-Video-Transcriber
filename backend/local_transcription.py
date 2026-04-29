@@ -1,5 +1,8 @@
 import importlib
+import json
 import logging
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -35,6 +38,60 @@ def _python_version_tuple() -> tuple[int, int]:
     return major, minor
 
 
+def _detect_msvc_build_tools() -> dict[str, Any]:
+    detected = {
+        "installed": False,
+        "source": "",
+        "path": "",
+    }
+    if not sys.platform.startswith("win"):
+        return detected
+
+    program_files_x86 = os.environ.get("ProgramFiles(x86)") or r"C:\Program Files (x86)"
+    vswhere_path = Path(program_files_x86) / "Microsoft Visual Studio" / "Installer" / "vswhere.exe"
+    if vswhere_path.exists():
+        try:
+            result = subprocess.run(
+                [
+                    str(vswhere_path),
+                    "-products",
+                    "*",
+                    "-requires",
+                    "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+                    "-format",
+                    "json",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                entries = json.loads(result.stdout or "[]")
+                if entries:
+                    install_path = entries[0].get("installationPath", "")
+                    detected.update(
+                        {
+                            "installed": True,
+                            "source": "vswhere",
+                            "path": install_path,
+                        }
+                    )
+                    return detected
+        except Exception:
+            logger.debug("Could not query Visual Studio Build Tools with vswhere", exc_info=True)
+
+    cl_path = shutil.which("cl.exe")
+    if cl_path:
+        detected.update(
+            {
+                "installed": True,
+                "source": "path",
+                "path": cl_path,
+            }
+        )
+    return detected
+
+
 def _backend_install_constraints(backend: str) -> dict[str, Any]:
     normalized_backend = (backend or DEFAULT_LOCAL_BACKEND).strip().lower()
     if normalized_backend != "parakeet":
@@ -42,6 +99,19 @@ def _backend_install_constraints(backend: str) -> dict[str, Any]:
 
     major, minor = _python_version_tuple()
     if sys.platform.startswith("win") and (major, minor) >= (3, 13):
+        build_tools = _detect_msvc_build_tools()
+        if build_tools["installed"]:
+            return {
+                "auto_install_supported": True,
+                "warning_code": "parakeet_windows_py313_build_tools_detected",
+                "message": (
+                    "Microsoft C++ Build Tools were detected on this machine. "
+                    "Parakeet dependency installation on Windows with Python 3.13 can still take a while because the "
+                    "NeMo ASR dependency chain may build editdistance from source on this runtime. "
+                    "If installation still fails, ensure Build Tools include workload 'Desktop development with C++', "
+                    "restart the app shell if Build Tools were installed after the shell was opened, or use a Python 3.12 environment."
+                ),
+            }
         return {
             "auto_install_supported": True,
             "warning_code": "parakeet_windows_py313_requires_build_tools",

@@ -88,6 +88,33 @@ def save_tasks(tasks_data):
     except Exception as e:
         logger.error(f"保存任务状态失败: {e}")
 
+def _mark_incomplete_tasks_as_interrupted(tasks_data):
+    """Mark persisted in-flight tasks as interrupted after app restart."""
+    changed = False
+    interrupted_at = datetime.now(timezone.utc).isoformat()
+    task_error = "Task was interrupted by app restart. Start it again."
+    summary_error = "Summary job was interrupted by app restart. Generate it again."
+
+    for task in tasks_data.values():
+        if task.get("status") == "processing":
+            task["status"] = "error"
+            task["error"] = task_error
+            task["message"] = task_error
+            task["stage_code"] = "error"
+            task["stage_started_at"] = interrupted_at
+            changed = True
+
+        if task.get("summary_status") == "processing":
+            task["summary_status"] = "error"
+            task["summary_progress"] = 0
+            task["summary_error"] = summary_error
+            if task.get("status") != "error":
+                task["message"] = summary_error
+            changed = True
+
+    return changed
+
+
 async def broadcast_task_update(task_id: str, task_data: dict):
     """向所有连接的SSE客户端广播任务状态更新"""
     logger.info(f"广播任务更新: {task_id}, 状态: {task_data.get('status')}, 连接数: {len(sse_connections.get(task_id, []))}")
@@ -111,6 +138,8 @@ async def broadcast_task_update(task_id: str, task_data: dict):
 
 # 启动时加载任务状态
 tasks = load_tasks()
+if _mark_incomplete_tasks_as_interrupted(tasks):
+    save_tasks(tasks)
 # 存储正在处理的URL，防止重复处理
 processing_urls = set()
 # 存储活跃的任务对象，用于控制和取消
@@ -1387,6 +1416,7 @@ async def delete_task(task_id: str):
     
     # 删除任务记录
     del tasks[task_id]
+    save_tasks(tasks)
     return {"message": "任务已取消并删除"}
 
 @app.get("/api/tasks/active")

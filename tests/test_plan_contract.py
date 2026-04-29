@@ -811,7 +811,8 @@ class PlanContractTests(unittest.TestCase):
         with patch.object(main.importlib.util, "find_spec", side_effect=fake_find_spec):
             with patch.object(local_transcription.sys, "platform", "win32"):
                 with patch.object(local_transcription.sys, "version_info", (3, 13, 0)):
-                    caps = asyncio.run(main.get_local_model_capabilities())
+                    with patch.object(local_transcription, "_detect_msvc_build_tools", return_value={"installed": False, "source": "", "path": ""}):
+                        caps = asyncio.run(main.get_local_model_capabilities())
 
         parakeet_caps = caps["backends"]["parakeet"]
         self.assertFalse(parakeet_caps["available"])
@@ -821,6 +822,55 @@ class PlanContractTests(unittest.TestCase):
             "parakeet_windows_py313_requires_build_tools",
         )
         self.assertIn("Desktop development with C++", parakeet_caps["warning"])
+
+    def test_local_model_capabilities_report_build_tools_detected_on_windows_py313(self):
+        import importlib.util
+
+        original_find_spec = importlib.util.find_spec
+
+        def fake_find_spec(name, package=None):
+            if name in {"nemo", "nemo.collections", "nemo.collections.asr"}:
+                return None
+            return original_find_spec(name, package)
+
+        with patch.object(main.importlib.util, "find_spec", side_effect=fake_find_spec):
+            with patch.object(local_transcription.sys, "platform", "win32"):
+                with patch.object(local_transcription.sys, "version_info", (3, 13, 0)):
+                    with patch.object(local_transcription, "_detect_msvc_build_tools", return_value={"installed": True, "source": "vswhere"}):
+                        caps = asyncio.run(main.get_local_model_capabilities())
+
+        parakeet_caps = caps["backends"]["parakeet"]
+        self.assertFalse(parakeet_caps["available"])
+        self.assertTrue(parakeet_caps["auto_install"])
+        self.assertEqual(
+            parakeet_caps["warning_code"],
+            "parakeet_windows_py313_build_tools_detected",
+        )
+        self.assertIn("were detected", parakeet_caps["warning"])
+
+    def test_mark_incomplete_tasks_as_interrupted(self):
+        tasks_data = {
+            "task-1": {
+                "status": "processing",
+                "message": "Loading local model",
+                "stage_code": "loading_local_model",
+                "summary_status": "idle",
+            },
+            "task-2": {
+                "status": "completed",
+                "message": "done",
+                "summary_status": "processing",
+                "summary_progress": 35,
+            },
+        }
+
+        changed = main._mark_incomplete_tasks_as_interrupted(tasks_data)
+
+        self.assertTrue(changed)
+        self.assertEqual(tasks_data["task-1"]["status"], "error")
+        self.assertIn("interrupted", tasks_data["task-1"]["error"].lower())
+        self.assertEqual(tasks_data["task-2"]["summary_status"], "error")
+        self.assertIn("interrupted", tasks_data["task-2"]["summary_error"].lower())
 
 
 class WindowsLauncherTests(unittest.TestCase):
@@ -920,8 +970,9 @@ class LocalTranscriptionHelpersTests(unittest.TestCase):
 
         with patch.object(local_transcription.sys, "platform", "win32"):
             with patch.object(local_transcription.sys, "version_info", (3, 13, 0)):
-                with patch.object(local_transcription.subprocess, "run", side_effect=fake_run):
-                    local_transcription.install_backend_dependencies("parakeet")
+                with patch.object(local_transcription, "_detect_msvc_build_tools", return_value={"installed": False, "source": "", "path": ""}):
+                    with patch.object(local_transcription.subprocess, "run", side_effect=fake_run):
+                        local_transcription.install_backend_dependencies("parakeet")
 
         self.assertTrue(calls)
         self.assertIn("nemo_toolkit[asr]>=2.0.0", calls[0])

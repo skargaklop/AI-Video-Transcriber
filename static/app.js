@@ -360,6 +360,7 @@ class VideoTranscriber {
       local_capabilities_error: 'Failed to load local model capabilities.',
       parakeet_cpu_warning: 'Parakeet may be slow on CPU.',
       parakeet_windows_py313_requires_build_tools: 'Parakeet on Windows with Python 3.13 may require Microsoft C++ Build Tools during dependency installation. If installation fails, ensure Build Tools are installed with workload: Desktop development with C++, or use a Python 3.12 environment.',
+      parakeet_windows_py313_build_tools_detected: 'Microsoft C++ Build Tools were detected. Parakeet dependency installation on Windows with Python 3.13 can still be slow, and you may need to restart the app shell if Build Tools were installed after the shell was opened.',
       stage_parakeet_windows_py313_requires_build_tools: 'Microsoft C++ Build Tools are required for Parakeet on Windows with Python 3.13',
       download_build_tools: 'Download Build Tools',
       local_api_transcription: 'Local API Transcription',
@@ -427,6 +428,7 @@ class VideoTranscriber {
       local_capabilities_error: 'Не удалось загрузить возможности локальных моделей.',
       parakeet_cpu_warning: 'Parakeet может работать медленно на CPU.',
       parakeet_windows_py313_requires_build_tools: 'Parakeet на Windows с Python 3.13 может потребовать Microsoft C++ Build Tools при установке зависимостей. Если установка падает, убедитесь, что Build Tools установлены с workload: Desktop development with C++, или используйте окружение Python 3.12.',
+      parakeet_windows_py313_build_tools_detected: 'Microsoft C++ Build Tools обнаружены. Установка зависимостей Parakeet на Windows с Python 3.13 все равно может идти долго, и может понадобиться перезапустить shell приложения, если Build Tools были установлены после его запуска.',
       stage_parakeet_windows_py313_requires_build_tools: 'Для Parakeet на Windows с Python 3.13 нужны Microsoft C++ Build Tools',
       download_build_tools: 'Скачать Build Tools',
       local_api_transcription: 'Транскрибация через локальный API',
@@ -494,6 +496,7 @@ class VideoTranscriber {
       local_capabilities_error: 'Не вдалося завантажити можливості локальних моделей.',
       parakeet_cpu_warning: 'Parakeet може працювати повільно на CPU.',
       parakeet_windows_py313_requires_build_tools: 'Parakeet на Windows з Python 3.13 може потребувати Microsoft C++ Build Tools під час встановлення залежностей. Якщо встановлення падає, переконайтеся, що Build Tools встановлені з workload: Desktop development with C++, або використовуйте середовище Python 3.12.',
+      parakeet_windows_py313_build_tools_detected: 'Microsoft C++ Build Tools виявлено. Встановлення залежностей Parakeet на Windows з Python 3.13 все одно може тривати довго, і може знадобитися перезапустити shell застосунку, якщо Build Tools були встановлені після його запуску.',
       stage_parakeet_windows_py313_requires_build_tools: 'Для Parakeet на Windows з Python 3.13 потрібні Microsoft C++ Build Tools',
       download_build_tools: 'Завантажити Build Tools',
       local_api_transcription: 'Транскрибування через локальний API',
@@ -983,6 +986,8 @@ class VideoTranscriber {
         href: MSVC_BUILD_TOOLS_URL,
         text: this.t('download_build_tools'),
       });
+    } else if (caps.warning_code === 'parakeet_windows_py313_build_tools_detected') {
+      parts.push(this.t('parakeet_windows_py313_build_tools_detected'));
     } else if (caps.warning) {
       parts.push(caps.warning);
     }
