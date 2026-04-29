@@ -128,7 +128,7 @@ python start.py --prod
 - **yt-dlp**: Subtitle extraction and direct audio URL resolution
 - **Groq API**: Speech-to-text provider
 - **faster-whisper**: Optional local Whisper backend
-- **NVIDIA NeMo / Parakeet**: Optional local Parakeet backend
+- **onnx-asr / Parakeet**: Optional local ONNX Parakeet backend
 - **OpenAI-compatible API**: User-confirmed summarization
 
 ### Frontend Stack
@@ -174,14 +174,9 @@ AI-Video-Transcriber/
 - The server does not require a virtual environment at runtime. It runs in whichever Python interpreter starts `start.py`.
 - The Windows launcher lets you choose whether dependencies are installed into `.venv` or your current Python environment.
 - Whisper can run on CPU or CUDA.
-- Parakeet can also run on CPU, but it may be slow; the UI surfaces that warning.
-- On Windows with Python 3.13, automatic Parakeet dependency installation can fail because the NeMo ASR dependency chain may need a local C++ build step.
-- If that happens, install Microsoft C++ Build Tools with this bootstrapper: [vs_BuildTools.exe](https://aka.ms/vs/17/release/vs_BuildTools.exe)
-- In the installer, choose the workload `Desktop development with C++`.
-- Keep the default C++ compiler and Windows SDK selections enabled, especially:
-  - `MSVC v143 - VS 2022 C++ x64/x86 build tools` (or the latest MSVC x64/x86 build tools entry shown)
-  - a current `Windows 10/11 SDK`
-- You do not need the full Visual Studio IDE for this app.
+- Parakeet now uses `onnx-asr` with ONNX Runtime instead of the old NeMo/PyTorch path.
+- The app prefers the ONNX `int8` Parakeet model on first load to keep RAM use down.
+- Parakeet can also run on CPU, but it may still be slower than Groq or local Whisper; the UI surfaces that warning.
 - Missing local backend packages are installed automatically when you actually run the selected local backend.
 - The exact selected local model is downloaded automatically on first use and then reused from cache.
 - Local custom models are passed through as-is. If a backend/model does not expose timestamps, transcription still succeeds and the app returns transcript text without timecodes.
@@ -213,12 +208,8 @@ A: In most cases this is an environment configuration issue rather than a code b
 - Configure your API key in the **AI Settings** panel, or set `OPENAI_API_KEY` as an env var
 - If port 8001 is occupied, stop the old process or change `PORT`
 
-### Q: What exactly do I choose in Microsoft C++ Build Tools for Parakeet?
-A: If Parakeet tells you Microsoft C++ Build Tools are required:
-- Download the installer: [vs_BuildTools.exe](https://aka.ms/vs/17/release/vs_BuildTools.exe)
-- In **Workloads**, select `Desktop development with C++`
-- Keep the default MSVC compiler and Windows SDK components enabled
-- Install, then retry Parakeet transcription
+### Q: Do I still need Microsoft C++ Build Tools for Parakeet?
+A: Not for the default local Parakeet path in this fork. The app now uses the ONNX-based `onnx-asr` backend instead of the older NeMo dependency chain, so the Windows Build Tools workaround is no longer part of the normal Parakeet setup.
 
 ### Q: How to handle long videos?
 A: The app can try subtitles first, then use Groq or a local model based on your settings. If Groq is selected, Groq file/URL limits and YouTube URL expiry can still apply; local fallback can help when the failure is transient and eligible.
@@ -227,7 +218,7 @@ A: The app can try subtitles first, then use Groq or a local model based on your
 A: This Windows 10 setup intentionally does not use Docker. Use `start_windows.bat` or `python start.py`.
 
 ### Q: What are the memory requirements?
-A: The FastAPI server itself is lightweight. Memory use rises if you enable local backends, especially larger Whisper models or Parakeet on GPU. CPU-only Parakeet is supported but can be slow.
+A: The FastAPI server itself is lightweight. Memory use rises if you enable local backends, especially larger Whisper models. The ONNX Parakeet backend is materially lighter than the old NeMo/PyTorch path, but CPU-only Parakeet can still be slow on long videos.
 
 ### Q: Network connection errors or timeouts?
 A: If you encounter network-related errors during video downloading or API calls, try these solutions:

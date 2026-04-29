@@ -1,8 +1,6 @@
-/* ────────────────────────────────────────────────────────────
-   AI Video Transcriber · app.js
-   ──────────────────────────────────────────────────────────── */
+﻿/* AI Video Transcriber · app.js */
 
-const MSVC_BUILD_TOOLS_URL = 'https://aka.ms/vs/17/release/vs_BuildTools.exe';
+
 
 class VideoTranscriber {
   constructor() {
@@ -258,58 +256,58 @@ class VideoTranscriber {
         models_error:            'Не вдалося завантажити моделі',
       },
       zh: {
-        title:                   'AI 视频转录器',
+        title:                   'AI и§†йў‘иЅ¬еЅ•е™Ё',
         subtitle:                '粘贴 YouTube、TikTok 或任意公开视频链接，获取转录文本和 AI 摘要。',
         video_url_placeholder:   '请输入视频链接…',
         start_transcription:     '开始转录',
-        ai_settings:             'AI 设置',
-        groq_transcription:      'Groq 转录',
+        ai_settings:             'AI и®ѕзЅ®',
+        groq_transcription:      'Groq иЅ¬еЅ•',
         groq_api_key:            'Groq API Key',
         groq_api_key_placeholder:'gsk_...',
         groq_model:              'Groq Whisper 模型',
-        groq_language:           '输入语言',
+        groq_language:           'иѕ“е…ҐиЇ­иЁЂ',
         groq_language_placeholder:'auto',
-        groq_prompt:             'Groq 提示词',
-        groq_prompt_placeholder: '名称、主题、拼写...',
+        groq_prompt:             'Groq жЏђз¤єиЇЌ',
+        groq_prompt_placeholder: 'еђЌз§°гЂЃдё»йўгЂЃж‹је†™...',
         summary_provider:        '摘要模型',
-        model_base_url:          'Model API 地址',
+        model_base_url:          'Model API ењ°еќЂ',
         model_base_url_placeholder: 'https://openrouter.ai/api/v1',
         api_key:                 'API Key',
         api_key_placeholder:     'sk-...',
-        fetch_models:            '获取',
+        fetch_models:            'иЋ·еЏ–',
         model_select:            '模型',
         model_default:           '— 使用服务器默认 —',
-        reasoning_effort:        '推理强度',
-        reasoning_auto:          '自动',
-        reasoning_none:          '无',
-        reasoning_minimal:       '最小',
-        reasoning_low:           '低',
-        reasoning_medium:        '中',
-        reasoning_high:          '高',
-        reasoning_xhigh:         '超高',
-        summary_language:        '摘要语言',
-        summary_prompt_label:    '摘要提示词',
+        reasoning_effort:        'жЋЁзђ†ејєеє¦',
+        reasoning_auto:          'и‡ЄеЉЁ',
+        reasoning_none:          'ж— ',
+        reasoning_minimal:       'жњЂе°Џ',
+        reasoning_low:           'дЅЋ',
+        reasoning_medium:        'дё­',
+        reasoning_high:          'й«',
+        reasoning_xhigh:         'и¶…й«',
+        summary_language:        'ж‘и¦ЃиЇ­иЁЂ',
+        summary_prompt_label:    'ж‘и¦ЃжЏђз¤єиЇЌ',
         summary_prompt_placeholder: '可选：告诉模型如何摘要，例如“重点总结行动项和风险”。',
-        processing_progress:     '处理进度',
+        processing_progress:     'е¤„зђ†иї›еє¦',
         preparing:               '准备中…',
-        transcript_text:         '转录文本',
-        intelligent_summary:     '智能摘要',
-        translation:             '翻译',
-        download_transcript:     '转录',
-        download_translation:    '翻译',
-        download_summary:        '摘要',
-        download_summary_md:     '摘要 MD',
-        download_summary_html:   '摘要 HTML',
-        download_summary_txt:    '摘要 TXT',
-        output_format:           '输出格式',
+        transcript_text:         'иЅ¬еЅ•ж–‡жњ¬',
+        intelligent_summary:     'ж™єиѓЅж‘и¦Ѓ',
+        translation:             'зї»иЇ‘',
+        download_transcript:     'иЅ¬еЅ•',
+        download_translation:    'зї»иЇ‘',
+        download_summary:        'ж‘и¦Ѓ',
+        download_summary_md:     'ж‘и¦Ѓ MD',
+        download_summary_html:   'ж‘и¦Ѓ HTML',
+        download_summary_txt:    'ж‘и¦Ѓ TXT',
+        output_format:           'иѕ“е‡єж јејЏ',
         format_markdown:         'Markdown',
         format_html:             'HTML',
         format_txt:              'TXT',
         format_both:             'Markdown + HTML',
-        generate_summary:        '生成摘要',
+        generate_summary:        'з”џж€ђж‘и¦Ѓ',
         summary_waiting:         '转录已完成。确认后再发送给摘要模型。',
-        generating_summary_btn:  '生成中...',
-        empty_hint:              '在上方粘贴视频链接，让 AI 来处理一切。',
+        generating_summary_btn:  'з”џж€ђдё­...',
+        empty_hint:              'ењЁдёЉж–№зІиґґи§†йў‘й“ѕжЋҐпјЊи®© AI жќҐе¤„зђ†дёЂе€‡гЂ‚',
         processing:              '处理中…',
         downloading_video:       '正在解析音频 URL…',
         parsing_video:           '正在解析视频信息…',
@@ -322,11 +320,11 @@ class VideoTranscriber {
         mode_subtitle:           '⚡ 字幕模式',
         mode_whisper:            'Groq URL',
         mode_groq:               'Groq URL',
-        completed:               '处理完成！',
-        error_invalid_url:       '请输入有效的视频链接',
-        error_processing_failed: '处理失败：',
-        error_no_download:       '没有可下载的文件',
-        error_download_failed:   '下载失败：',
+        completed:               'е¤„зђ†е®Њж€ђпјЃ',
+        error_invalid_url:       'иЇ·иѕ“е…Ґжњ‰ж•€зљ„и§†йў‘й“ѕжЋҐ',
+        error_processing_failed: 'е¤„зђ†е¤±иґҐпјљ',
+        error_no_download:       'жІЎжњ‰еЏЇдё‹иЅЅзљ„ж–‡д»¶',
+        error_download_failed:   'дё‹иЅЅе¤±иґҐпјљ',
         fetching_models:         '正在获取模型列表…',
         models_loaded:           (n) => `已加载 ${n} 个模型`,
         models_error:            '获取模型失败',
@@ -359,10 +357,6 @@ class VideoTranscriber {
       local_backend_auto_install: 'Missing backend packages and the selected model will be installed automatically on first use.',
       local_capabilities_error: 'Failed to load local model capabilities.',
       parakeet_cpu_warning: 'Parakeet may be slow on CPU.',
-      parakeet_windows_py313_requires_build_tools: 'Parakeet on Windows with Python 3.13 may require Microsoft C++ Build Tools during dependency installation. If installation fails, ensure Build Tools are installed with workload: Desktop development with C++, or use a Python 3.12 environment.',
-      parakeet_windows_py313_build_tools_detected: 'Microsoft C++ Build Tools were detected. Parakeet dependency installation on Windows with Python 3.13 can still be slow, and you may need to restart the app shell if Build Tools were installed after the shell was opened.',
-      stage_parakeet_windows_py313_requires_build_tools: 'Microsoft C++ Build Tools are required for Parakeet on Windows with Python 3.13',
-      download_build_tools: 'Download Build Tools',
       local_api_transcription: 'Local API Transcription',
       local_api_base_url: 'Local API Base URL',
       local_api_base_url_placeholder: 'http://127.0.0.1:11434/v1',
@@ -427,10 +421,6 @@ class VideoTranscriber {
       local_backend_auto_install: 'Недостающие пакеты движка и выбранная модель будут установлены автоматически при первом запуске.',
       local_capabilities_error: 'Не удалось загрузить возможности локальных моделей.',
       parakeet_cpu_warning: 'Parakeet может работать медленно на CPU.',
-      parakeet_windows_py313_requires_build_tools: 'Parakeet на Windows с Python 3.13 может потребовать Microsoft C++ Build Tools при установке зависимостей. Если установка падает, убедитесь, что Build Tools установлены с workload: Desktop development with C++, или используйте окружение Python 3.12.',
-      parakeet_windows_py313_build_tools_detected: 'Microsoft C++ Build Tools обнаружены. Установка зависимостей Parakeet на Windows с Python 3.13 все равно может идти долго, и может понадобиться перезапустить shell приложения, если Build Tools были установлены после его запуска.',
-      stage_parakeet_windows_py313_requires_build_tools: 'Для Parakeet на Windows с Python 3.13 нужны Microsoft C++ Build Tools',
-      download_build_tools: 'Скачать Build Tools',
       local_api_transcription: 'Транскрибация через локальный API',
       local_api_base_url: 'Base URL локального API',
       local_api_base_url_placeholder: 'http://127.0.0.1:11434/v1',
@@ -495,10 +485,6 @@ class VideoTranscriber {
       local_backend_auto_install: 'Відсутні пакети рушія та вибрана модель будуть встановлені автоматично під час першого запуску.',
       local_capabilities_error: 'Не вдалося завантажити можливості локальних моделей.',
       parakeet_cpu_warning: 'Parakeet може працювати повільно на CPU.',
-      parakeet_windows_py313_requires_build_tools: 'Parakeet на Windows з Python 3.13 може потребувати Microsoft C++ Build Tools під час встановлення залежностей. Якщо встановлення падає, переконайтеся, що Build Tools встановлені з workload: Desktop development with C++, або використовуйте середовище Python 3.12.',
-      parakeet_windows_py313_build_tools_detected: 'Microsoft C++ Build Tools виявлено. Встановлення залежностей Parakeet на Windows з Python 3.13 все одно може тривати довго, і може знадобитися перезапустити shell застосунку, якщо Build Tools були встановлені після його запуску.',
-      stage_parakeet_windows_py313_requires_build_tools: 'Для Parakeet на Windows з Python 3.13 потрібні Microsoft C++ Build Tools',
-      download_build_tools: 'Завантажити Build Tools',
       local_api_transcription: 'Транскрибування через локальний API',
       local_api_base_url: 'Base URL локального API',
       local_api_base_url_placeholder: 'http://127.0.0.1:11434/v1',
@@ -546,7 +532,7 @@ class VideoTranscriber {
     this._syncProviderSettings();
   }
 
-  /* ── Elements ─────────────────────────────────────────── */
+  /* в”Ђв”Ђ Elements в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */
   _initElements() {
     this.form               = document.getElementById('videoForm');
     this.videoUrlInput      = document.getElementById('videoUrl');
@@ -559,6 +545,7 @@ class VideoTranscriber {
     this.langOptions        = Array.from(document.querySelectorAll('.lang-option'));
     this.errorBanner        = document.getElementById('errorBanner');
     this.errorMsg           = document.getElementById('errorMsg');
+    this.errorCloseBtn      = document.getElementById('errorCloseBtn');
     this.emptyState         = document.getElementById('emptyState');
     this.progressPanel      = document.getElementById('progressPanel');
     this.modeBadge          = document.getElementById('modeBadge');
@@ -634,9 +621,10 @@ class VideoTranscriber {
     this.localCapabilities  = null;
   }
 
-  /* ── Events ───────────────────────────────────────────── */
+  /* в”Ђв”Ђ Events в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */
   _bindEvents() {
     this.form.addEventListener('submit', (e) => { e.preventDefault(); this._startTranscription(); });
+    this.errorCloseBtn?.addEventListener('click', () => this._hideError());
 
     this.langToggle.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -755,7 +743,7 @@ class VideoTranscriber {
     });
   }
 
-  /* ── i18n ─────────────────────────────────────────────── */
+  /* в”Ђв”Ђ i18n в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */
   t(key) {
     const active = this.i18n[this.currentLang] || this.i18n.en;
     return active[key] || this.i18n.en[key] || key;
@@ -806,7 +794,7 @@ class VideoTranscriber {
     });
   }
 
-  /* ── Settings persistence ─────────────────────────────── */
+  /* в”Ђв”Ђ Settings persistence в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */
   _saveSettings() {
     const s = {
       uiLang:   this.currentLang,
@@ -979,15 +967,6 @@ class VideoTranscriber {
     }
     if (caps.warning_code === 'parakeet_cpu_slow') {
       parts.push(this.t('parakeet_cpu_warning'));
-    } else if (caps.warning_code === 'parakeet_windows_py313_requires_build_tools') {
-      parts.push(this.t('parakeet_windows_py313_requires_build_tools'));
-      parts.push({
-        type: 'link',
-        href: MSVC_BUILD_TOOLS_URL,
-        text: this.t('download_build_tools'),
-      });
-    } else if (caps.warning_code === 'parakeet_windows_py313_build_tools_detected') {
-      parts.push(this.t('parakeet_windows_py313_build_tools_detected'));
     } else if (caps.warning) {
       parts.push(caps.warning);
     }
@@ -1045,7 +1024,7 @@ class VideoTranscriber {
     this._renderLocalCapabilities();
   }
 
-  /* ── Fetch models ─────────────────────────────────────── */
+  /* в”Ђв”Ђ Fetch models в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */
   async _fetchModels(silent = false) {
     const baseUrl = this.modelBaseUrl.value.trim().replace(/\/$/, '');
     const apiKey  = this.apiKeyInput.value.trim();
@@ -1123,7 +1102,7 @@ class VideoTranscriber {
     if (!supported) this.reasoningEffortSelect.value = '';
   }
 
-  /* ── Transcription ────────────────────────────────────── */
+  /* в”Ђв”Ђ Transcription в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */
   async _startTranscription() {
     if (this.submitBtn.disabled) return;
 
@@ -1204,7 +1183,7 @@ class VideoTranscriber {
     }
   }
 
-  /* ── SSE ──────────────────────────────────────────────── */
+  /* в”Ђв”Ђ SSE в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */
   _startSSE() {
     if (!this.currentTaskId) return;
     this.eventSource = new EventSource(`${this.apiBase}/task-stream/${this.currentTaskId}`);
@@ -1300,7 +1279,7 @@ class VideoTranscriber {
     this._summaryButtonOriginal = null;
   }
 
-  /* ── Progress ─────────────────────────────────────────── */
+  /* в”Ђв”Ђ Progress в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */
   _updateProgress(pct, msg, fromServer = false, task = null) {
     if (fromServer) {
       this._stopSP();
@@ -1519,7 +1498,7 @@ class VideoTranscriber {
     this.progressPanel.classList.remove('show');
   }
 
-  /* ── Results ──────────────────────────────────────────── */
+  /* в”Ђв”Ђ Results в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */
   _showResults(task) {
     this.currentTask = task || {};
     const script = this.currentTask.transcript || this.currentTask.script;
@@ -1623,7 +1602,7 @@ class VideoTranscriber {
 
   _hideResults() { this.resultsPanel.classList.remove('show'); }
 
-  /* ── Tabs ─────────────────────────────────────────────── */
+  /* в”Ђв”Ђ Tabs в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */
   _switchTab(name) {
     this.tabBtns.forEach(b  => b.classList.toggle('active',  b.dataset.tab === name));
     this.tabPanes.forEach(p => p.classList.toggle('active', p.id === `${name}Tab`));
@@ -1813,7 +1792,7 @@ class VideoTranscriber {
     return String(value || 'file').replace(/[<>:"/\\|?*\x00-\x1F]+/g, '_').replace(/\s+/g, '_').slice(0, 90);
   }
 
-  /* ── Download ─────────────────────────────────────────── */
+  /* в”Ђв”Ђ Download в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */
   async _downloadFile(type) {
     if (!this.currentTaskId) { this._showError(this.t('error_no_download')); return; }
     try {
@@ -1846,7 +1825,7 @@ class VideoTranscriber {
     return String(path).split(/[\\/]/).pop();
   }
 
-  /* ── UI helpers ───────────────────────────────────────── */
+  /* в”Ђв”Ђ UI helpers в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */
   _setLoading(on) {
     this.submitBtn.disabled = on;
     this.submitBtn.innerHTML = on
@@ -1858,7 +1837,6 @@ class VideoTranscriber {
     this.errorMsg.textContent = msg;
     this.errorBanner.classList.add('show');
     this.errorBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    setTimeout(() => this._hideError(), 6000);
   }
   _hideError() { this.errorBanner.classList.remove('show'); }
 
@@ -1868,7 +1846,7 @@ class VideoTranscriber {
   }
 }
 
-/* ── Boot ──────────────────────────────────────────────── */
+/* в”Ђв”Ђ Boot в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */
 document.addEventListener('DOMContentLoaded', () => {
   window.vt = new VideoTranscriber();
 });
@@ -1876,3 +1854,4 @@ document.addEventListener('DOMContentLoaded', () => {
 window.addEventListener('beforeunload', () => {
   if (window.vt?.eventSource) window.vt._stopSSE();
 });
+

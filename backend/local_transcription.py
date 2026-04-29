@@ -1,8 +1,6 @@
 import importlib
-import json
 import logging
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -20,7 +18,7 @@ DEFAULT_WHISPER_MODEL = "base"
 DEFAULT_PARAKEET_MODEL = PARAKEET_MODEL_PRESETS[0]
 LOCAL_BACKEND_PACKAGES = {
     "whisper": ["faster-whisper>=1.1.0"],
-    "parakeet": ["nemo_toolkit[asr]>=2.0.0"],
+    "parakeet": ["onnx-asr[cpu,hub]>=0.11.0"],
 }
 
 
@@ -28,101 +26,7 @@ class LocalTranscriptionError(Exception):
     """Raised when local transcription cannot run."""
 
 
-def _python_version_tuple() -> tuple[int, int]:
-    version_info = getattr(sys, "version_info", (0, 0))
-    try:
-        major = int(version_info[0])
-        minor = int(version_info[1])
-    except Exception:
-        major, minor = 0, 0
-    return major, minor
-
-
-def _detect_msvc_build_tools() -> dict[str, Any]:
-    detected = {
-        "installed": False,
-        "source": "",
-        "path": "",
-    }
-    if not sys.platform.startswith("win"):
-        return detected
-
-    program_files_x86 = os.environ.get("ProgramFiles(x86)") or r"C:\Program Files (x86)"
-    vswhere_path = Path(program_files_x86) / "Microsoft Visual Studio" / "Installer" / "vswhere.exe"
-    if vswhere_path.exists():
-        try:
-            result = subprocess.run(
-                [
-                    str(vswhere_path),
-                    "-products",
-                    "*",
-                    "-requires",
-                    "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
-                    "-format",
-                    "json",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode == 0:
-                entries = json.loads(result.stdout or "[]")
-                if entries:
-                    install_path = entries[0].get("installationPath", "")
-                    detected.update(
-                        {
-                            "installed": True,
-                            "source": "vswhere",
-                            "path": install_path,
-                        }
-                    )
-                    return detected
-        except Exception:
-            logger.debug("Could not query Visual Studio Build Tools with vswhere", exc_info=True)
-
-    cl_path = shutil.which("cl.exe")
-    if cl_path:
-        detected.update(
-            {
-                "installed": True,
-                "source": "path",
-                "path": cl_path,
-            }
-        )
-    return detected
-
-
 def _backend_install_constraints(backend: str) -> dict[str, Any]:
-    normalized_backend = (backend or DEFAULT_LOCAL_BACKEND).strip().lower()
-    if normalized_backend != "parakeet":
-        return {"auto_install_supported": True, "warning_code": "", "message": ""}
-
-    major, minor = _python_version_tuple()
-    if sys.platform.startswith("win") and (major, minor) >= (3, 13):
-        build_tools = _detect_msvc_build_tools()
-        if build_tools["installed"]:
-            return {
-                "auto_install_supported": True,
-                "warning_code": "parakeet_windows_py313_build_tools_detected",
-                "message": (
-                    "Microsoft C++ Build Tools were detected on this machine. "
-                    "Parakeet dependency installation on Windows with Python 3.13 can still take a while because the "
-                    "NeMo ASR dependency chain may build editdistance from source on this runtime. "
-                    "If installation still fails, ensure Build Tools include workload 'Desktop development with C++', "
-                    "restart the app shell if Build Tools were installed after the shell was opened, or use a Python 3.12 environment."
-                ),
-            }
-        return {
-            "auto_install_supported": True,
-            "warning_code": "parakeet_windows_py313_requires_build_tools",
-            "message": (
-                "Parakeet on Windows with Python 3.13 may require Microsoft C++ Build Tools during dependency installation. "
-                "The NeMo ASR dependency chain pulls editdistance, which may fall back to a local source build on this runtime. "
-                "If installation fails, ensure Build Tools are installed with the workload 'Desktop development with C++', "
-                "or run Parakeet from a Python 3.12 environment."
-            ),
-        }
-
     return {"auto_install_supported": True, "warning_code": "", "message": ""}
 
 
@@ -151,13 +55,6 @@ def install_backend_dependencies(backend: str) -> None:
             )
         except subprocess.CalledProcessError as exc:
             stderr = exc.stderr or ""
-            if "Microsoft Visual C++ 14.0 or greater is required" in stderr:
-                raise LocalTranscriptionError(
-                    "Failed to install Parakeet dependencies: Microsoft C++ Build Tools are required for this build step. "
-                    "Open the Build Tools installer and choose workload 'Desktop development with C++', then retry. "
-                    "If you already installed Build Tools, restart the app shell and try again. "
-                    "You can also run Parakeet from a Python 3.12 environment."
-                ) from exc
             raise LocalTranscriptionError(
                 f"Failed to install dependencies for local backend '{normalized_backend}': {stderr or exc}"
             ) from exc
@@ -179,6 +76,20 @@ def ensure_backend_dependencies(backend: str, importlib_module: Any = importlib)
 
 
 def detect_runtime(importlib_module: Any = importlib) -> str:
+    try:
+        if importlib_module.util.find_spec("onnxruntime") is not None:
+            onnxruntime = importlib_module.import_module("onnxruntime")
+            providers = set(getattr(onnxruntime, "get_available_providers", lambda: [])())
+            accelerated = {
+                "CUDAExecutionProvider",
+                "TensorrtExecutionProvider",
+                "DmlExecutionProvider",
+                "ROCMExecutionProvider",
+            }
+            if providers.intersection(accelerated):
+                return "cuda"
+    except Exception:
+        logger.debug("Could not inspect onnxruntime providers", exc_info=True)
     try:
         if importlib_module.util.find_spec("torch") is None:
             return "cpu"

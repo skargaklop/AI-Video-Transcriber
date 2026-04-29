@@ -12,6 +12,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "backend"))
 
 import main  # noqa: E402
 import local_transcription  # noqa: E402
+import parakeet_transcriber  # noqa: E402
 
 
 class PlanContractTests(unittest.TestCase):
@@ -781,7 +782,7 @@ class PlanContractTests(unittest.TestCase):
         original_find_spec = importlib.util.find_spec
 
         def fake_find_spec(name, package=None):
-            if name in {"faster_whisper", "nemo", "nemo.collections", "nemo.collections.asr"}:
+            if name in {"faster_whisper", "onnx_asr", "onnxruntime"}:
                 return None
             return original_find_spec(name, package)
 
@@ -797,56 +798,28 @@ class PlanContractTests(unittest.TestCase):
         self.assertTrue(caps["backends"]["parakeet"]["custom_supported"])
         self.assertTrue(caps["backends"]["whisper"]["auto_install"])
         self.assertTrue(caps["backends"]["parakeet"]["auto_install"])
+        self.assertEqual(caps["backends"]["parakeet"]["warning_code"], "")
 
-    def test_local_model_capabilities_report_parakeet_build_tools_warning_on_windows_py313(self):
+    def test_local_model_capabilities_report_parakeet_has_no_build_tools_warning_on_windows_py313(self):
         import importlib.util
 
         original_find_spec = importlib.util.find_spec
 
         def fake_find_spec(name, package=None):
-            if name in {"nemo", "nemo.collections", "nemo.collections.asr"}:
+            if name in {"onnx_asr", "onnxruntime"}:
                 return None
             return original_find_spec(name, package)
 
         with patch.object(main.importlib.util, "find_spec", side_effect=fake_find_spec):
             with patch.object(local_transcription.sys, "platform", "win32"):
                 with patch.object(local_transcription.sys, "version_info", (3, 13, 0)):
-                    with patch.object(local_transcription, "_detect_msvc_build_tools", return_value={"installed": False, "source": "", "path": ""}):
-                        caps = asyncio.run(main.get_local_model_capabilities())
+                    caps = asyncio.run(main.get_local_model_capabilities())
 
         parakeet_caps = caps["backends"]["parakeet"]
         self.assertFalse(parakeet_caps["available"])
         self.assertTrue(parakeet_caps["auto_install"])
-        self.assertEqual(
-            parakeet_caps["warning_code"],
-            "parakeet_windows_py313_requires_build_tools",
-        )
-        self.assertIn("Desktop development with C++", parakeet_caps["warning"])
-
-    def test_local_model_capabilities_report_build_tools_detected_on_windows_py313(self):
-        import importlib.util
-
-        original_find_spec = importlib.util.find_spec
-
-        def fake_find_spec(name, package=None):
-            if name in {"nemo", "nemo.collections", "nemo.collections.asr"}:
-                return None
-            return original_find_spec(name, package)
-
-        with patch.object(main.importlib.util, "find_spec", side_effect=fake_find_spec):
-            with patch.object(local_transcription.sys, "platform", "win32"):
-                with patch.object(local_transcription.sys, "version_info", (3, 13, 0)):
-                    with patch.object(local_transcription, "_detect_msvc_build_tools", return_value={"installed": True, "source": "vswhere"}):
-                        caps = asyncio.run(main.get_local_model_capabilities())
-
-        parakeet_caps = caps["backends"]["parakeet"]
-        self.assertFalse(parakeet_caps["available"])
-        self.assertTrue(parakeet_caps["auto_install"])
-        self.assertEqual(
-            parakeet_caps["warning_code"],
-            "parakeet_windows_py313_build_tools_detected",
-        )
-        self.assertIn("were detected", parakeet_caps["warning"])
+        self.assertEqual(parakeet_caps["warning_code"], "")
+        self.assertEqual(parakeet_caps["warning"], "")
 
     def test_mark_incomplete_tasks_as_interrupted(self):
         tasks_data = {
@@ -896,12 +869,12 @@ class WindowsLauncherTests(unittest.TestCase):
 
 
 class FrontendContractTests(unittest.TestCase):
-    def test_frontend_includes_direct_build_tools_download_link(self):
+    def test_frontend_no_longer_mentions_build_tools_for_parakeet(self):
         app_js = (PROJECT_ROOT / "static" / "app.js").read_text(encoding="utf-8")
 
-        self.assertIn("https://aka.ms/vs/17/release/vs_BuildTools.exe", app_js)
-        self.assertIn("download_build_tools", app_js)
-        self.assertIn("Desktop development with C++", app_js)
+        self.assertNotIn("vs_BuildTools.exe", app_js)
+        self.assertNotIn("parakeet_windows_py313_requires_build_tools", app_js)
+        self.assertNotIn("parakeet_windows_py313_build_tools_detected", app_js)
 
     def test_switch_lang_rerenders_local_capabilities_message(self):
         app_js = (PROJECT_ROOT / "static" / "app.js").read_text(encoding="utf-8")
@@ -970,28 +943,56 @@ class LocalTranscriptionHelpersTests(unittest.TestCase):
 
         with patch.object(local_transcription.sys, "platform", "win32"):
             with patch.object(local_transcription.sys, "version_info", (3, 13, 0)):
-                with patch.object(local_transcription, "_detect_msvc_build_tools", return_value={"installed": False, "source": "", "path": ""}):
-                    with patch.object(local_transcription.subprocess, "run", side_effect=fake_run):
-                        local_transcription.install_backend_dependencies("parakeet")
+                with patch.object(local_transcription.subprocess, "run", side_effect=fake_run):
+                    local_transcription.install_backend_dependencies("parakeet")
 
         self.assertTrue(calls)
-        self.assertIn("nemo_toolkit[asr]>=2.0.0", calls[0])
+        self.assertIn("onnx-asr[cpu,hub]>=0.11.0", calls[0])
 
-    def test_install_backend_dependencies_surfaces_build_tools_guidance(self):
-        failure = subprocess.CalledProcessError(
-            1,
-            [sys.executable, "-m", "pip", "install", "nemo_toolkit[asr]>=2.0.0"],
-            stderr="error: Microsoft Visual C++ 14.0 or greater is required.",
+    def test_parakeet_normalizes_onnx_segment_results_into_transcript_segments(self):
+        class FakeSegment:
+            def __init__(self, text, start, end):
+                self.text = text
+                self.start = start
+                self.end = end
+
+        transcriber = parakeet_transcriber.ParakeetLocalTranscriber("nvidia/parakeet-tdt-0.6b-v3")
+        normalized = transcriber._normalize_result(
+            [
+                FakeSegment("First part", 0.0, 1.5),
+                FakeSegment("Second part", 1.5, 3.0),
+            ]
         )
 
-        with patch.object(local_transcription.sys, "platform", "win32"):
-            with patch.object(local_transcription.sys, "version_info", (3, 13, 0)):
-                with patch.object(local_transcription.subprocess, "run", side_effect=failure):
-                    with self.assertRaises(local_transcription.LocalTranscriptionError) as ctx:
-                        local_transcription.install_backend_dependencies("parakeet")
+        self.assertTrue(normalized["timestamps_supported"])
+        self.assertEqual(normalized["raw"]["segments"][0]["text"], "First part")
+        self.assertEqual(normalized["raw"]["segments"][0]["start"], "00:00")
+        self.assertEqual(normalized["raw"]["segments"][1]["end"], "00:03")
+        self.assertEqual(normalized["warnings"], [])
 
-        self.assertIn("Desktop development with C++", str(ctx.exception))
-        self.assertIn("Microsoft C++ Build Tools", str(ctx.exception))
+    def test_parakeet_normalizes_onnx_timestamp_lists_without_losing_text(self):
+        class FakeTimestamp:
+            def __init__(self, start, end):
+                self.start = start
+                self.end = end
+
+        class FakeResult:
+            def __init__(self, text, timestamps):
+                self.text = text
+                self.timestamps = timestamps
+
+        transcriber = parakeet_transcriber.ParakeetLocalTranscriber("nvidia/parakeet-tdt-0.6b-v3")
+        normalized = transcriber._normalize_result(
+            FakeResult(
+                "Recovered transcript text",
+                [FakeTimestamp(2.0, 2.8), FakeTimestamp(2.8, 4.2)],
+            )
+        )
+
+        self.assertTrue(normalized["timestamps_supported"])
+        self.assertEqual(normalized["raw"]["segments"][0]["text"], "Recovered transcript text")
+        self.assertEqual(normalized["raw"]["segments"][0]["start"], "00:02")
+        self.assertEqual(normalized["raw"]["segments"][0]["end"], "00:04")
 
 
 if __name__ == "__main__":
