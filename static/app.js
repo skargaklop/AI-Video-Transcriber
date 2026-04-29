@@ -9,6 +9,7 @@ class VideoTranscriber {
     this.eventSource    = null;
     this.apiBase        = '/api';
     this.currentLang    = 'en';
+    this.inputSourceMode = 'url';
     this.uiLanguages    = ['en', 'ru', 'uk'];
     this.langLabels     = { en: 'English', ru: 'Русский', uk: 'Українська' };
     this.htmlLangs      = { en: 'en', ru: 'ru', uk: 'uk' };
@@ -369,6 +370,11 @@ class VideoTranscriber {
       local_api_prompt: 'Transcription Prompt',
       local_api_prompt_placeholder: 'Names, topic, spelling...',
       local_api_notice: 'Use an OpenAI-compatible speech-to-text API endpoint.',
+      source_mode_url: 'Video URL',
+      source_mode_file: 'Local audio file',
+      choose_audio_file: 'Choose audio file',
+      no_audio_file_selected: 'No file selected',
+      error_no_audio_file: 'Choose a local audio file',
       mode_local: 'Local',
       mode_local_api: 'Local API',
       mode_fallback: 'Local fallback',
@@ -378,6 +384,7 @@ class VideoTranscriber {
       stage_elapsed_prefix: 'Elapsed',
       stage_checking_subtitles: 'Checking subtitles',
       stage_subtitle_skipped: 'Skipping subtitles',
+      stage_reading_uploaded_audio: 'Reading uploaded audio',
       stage_downloading_audio: 'Downloading audio',
       stage_preparing_audio: 'Preparing audio',
       stage_installing_local_backend: 'Installing local backend',
@@ -387,6 +394,7 @@ class VideoTranscriber {
       stage_resolving_groq_audio_url: 'Resolving Groq audio URL',
       stage_retrying_groq_audio_url: 'Refreshing Groq audio URL',
       stage_transcribing_groq_audio: 'Transcribing with Groq',
+      stage_uploading_groq_audio: 'Uploading audio to Groq',
       stage_downloading_groq_fallback_audio: 'Downloading fallback audio',
       stage_uploading_groq_fallback_audio: 'Uploading fallback audio',
       stage_switching_to_local_fallback: 'Switching to local fallback',
@@ -433,6 +441,11 @@ class VideoTranscriber {
       local_api_prompt: 'Промпт транскрибации',
       local_api_prompt_placeholder: 'Имена, тема, термины...',
       local_api_notice: 'Используйте OpenAI-совместимый speech-to-text API endpoint.',
+      source_mode_url: 'Ссылка на видео',
+      source_mode_file: 'Локальный аудиофайл',
+      choose_audio_file: 'Выбрать аудиофайл',
+      no_audio_file_selected: 'Файл не выбран',
+      error_no_audio_file: 'Выберите локальный аудиофайл',
       mode_local: 'Локально',
       mode_local_api: 'Локальный API',
       mode_fallback: 'Локальный fallback',
@@ -442,6 +455,7 @@ class VideoTranscriber {
       stage_elapsed_prefix: 'Время',
       stage_checking_subtitles: 'Проверка субтитров',
       stage_subtitle_skipped: 'Пропуск субтитров',
+      stage_reading_uploaded_audio: 'Чтение загруженного аудио',
       stage_downloading_audio: 'Загрузка аудио',
       stage_preparing_audio: 'Подготовка аудио',
       stage_installing_local_backend: 'Установка локального движка',
@@ -451,6 +465,7 @@ class VideoTranscriber {
       stage_resolving_groq_audio_url: 'Получение аудио URL для Groq',
       stage_retrying_groq_audio_url: 'Обновление аудио URL для Groq',
       stage_transcribing_groq_audio: 'Транскрибация через Groq',
+      stage_uploading_groq_audio: 'Загрузка аудио в Groq',
       stage_downloading_groq_fallback_audio: 'Загрузка аудио для fallback',
       stage_uploading_groq_fallback_audio: 'Загрузка файла в Groq',
       stage_switching_to_local_fallback: 'Переключение на локальный fallback',
@@ -497,6 +512,11 @@ class VideoTranscriber {
       local_api_prompt: 'Промпт транскрибування',
       local_api_prompt_placeholder: 'Імена, тема, терміни...',
       local_api_notice: 'Використовуйте OpenAI-сумісний speech-to-text API endpoint.',
+      source_mode_url: 'Посилання на відео',
+      source_mode_file: 'Локальний аудіофайл',
+      choose_audio_file: 'Обрати аудіофайл',
+      no_audio_file_selected: 'Файл не вибрано',
+      error_no_audio_file: 'Оберіть локальний аудіофайл',
       mode_local: 'Локально',
       mode_local_api: 'Локальний API',
       mode_fallback: 'Локальний fallback',
@@ -506,6 +526,7 @@ class VideoTranscriber {
       stage_elapsed_prefix: 'Час',
       stage_checking_subtitles: 'Перевірка субтитрів',
       stage_subtitle_skipped: 'Пропуск субтитрів',
+      stage_reading_uploaded_audio: 'Читання завантаженого аудіо',
       stage_downloading_audio: 'Завантаження аудіо',
       stage_preparing_audio: 'Підготовка аудіо',
       stage_installing_local_backend: 'Встановлення локального рушія',
@@ -515,6 +536,7 @@ class VideoTranscriber {
       stage_resolving_groq_audio_url: 'Отримання аудіо URL для Groq',
       stage_retrying_groq_audio_url: 'Оновлення аудіо URL для Groq',
       stage_transcribing_groq_audio: 'Транскрибування через Groq',
+      stage_uploading_groq_audio: 'Завантаження аудіо в Groq',
       stage_downloading_groq_fallback_audio: 'Завантаження аудіо для fallback',
       stage_uploading_groq_fallback_audio: 'Завантаження файла в Groq',
       stage_switching_to_local_fallback: 'Перехід на локальний fallback',
@@ -535,6 +557,12 @@ class VideoTranscriber {
   /* в”Ђв”Ђ Elements в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */
   _initElements() {
     this.form               = document.getElementById('videoForm');
+    this.sourceModeUrlBtn   = document.getElementById('sourceModeUrl');
+    this.sourceModeFileBtn  = document.getElementById('sourceModeFile');
+    this.urlInputWrap       = document.getElementById('urlInputWrap');
+    this.audioFileWrap      = document.getElementById('audioFileWrap');
+    this.audioFileInput     = document.getElementById('audioFileInput');
+    this.audioFileName      = document.getElementById('audioFileName');
     this.videoUrlInput      = document.getElementById('videoUrl');
     this.submitBtn          = document.getElementById('submitBtn');
     this.summaryLangSel     = document.getElementById('summaryLanguage');
@@ -595,6 +623,7 @@ class VideoTranscriber {
     this.groqPromptInput    = document.getElementById('groqPromptInput');
     this.transcriptionProviderSelect = document.getElementById('transcriptionProviderSelect');
     this.trySubtitlesFirstInput = document.getElementById('trySubtitlesFirstInput');
+    this.trySubtitlesFirstRow = this.trySubtitlesFirstInput?.closest('.check-row');
     this.useLocalFallbackInput = document.getElementById('useLocalFallbackInput');
     this.useLocalFallbackRow = document.getElementById('useLocalFallbackRow');
     this.localBackendSelect = document.getElementById('localBackendSelect');
@@ -625,6 +654,12 @@ class VideoTranscriber {
   _bindEvents() {
     this.form.addEventListener('submit', (e) => { e.preventDefault(); this._startTranscription(); });
     this.errorCloseBtn?.addEventListener('click', () => this._hideError());
+    this.sourceModeUrlBtn?.addEventListener('click', () => this._setInputSourceMode('url'));
+    this.sourceModeFileBtn?.addEventListener('click', () => this._setInputSourceMode('file'));
+    this.audioFileInput?.addEventListener('change', () => {
+      this._renderSelectedAudioFile();
+      this._saveSettings();
+    });
 
     this.langToggle.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -766,8 +801,33 @@ class VideoTranscriber {
       const v = this.t(el.dataset.i18nPlaceholder);
       if (typeof v === 'string') el.placeholder = v;
     });
+    this._renderSelectedAudioFile();
+    this._renderSourceMode();
     this._renderLocalCapabilities();
     this._syncLangMenu();
+  }
+
+  _setInputSourceMode(mode) {
+    this.inputSourceMode = mode === 'file' ? 'file' : 'url';
+    this._renderSourceMode();
+    this._syncProviderSettings();
+    this._saveSettings();
+  }
+
+  _renderSourceMode() {
+    const fileMode = this.inputSourceMode === 'file';
+    this.sourceModeUrlBtn?.classList.toggle('active', !fileMode);
+    this.sourceModeFileBtn?.classList.toggle('active', fileMode);
+    this.urlInputWrap?.classList.toggle('setting-hidden', fileMode);
+    this.audioFileWrap?.classList.toggle('setting-hidden', !fileMode);
+    if (this.videoUrlInput) this.videoUrlInput.disabled = fileMode;
+    if (this.audioFileInput) this.audioFileInput.disabled = !fileMode;
+  }
+
+  _renderSelectedAudioFile() {
+    if (!this.audioFileName) return;
+    const file = this.audioFileInput?.files?.[0];
+    this.audioFileName.textContent = file?.name || this.t('no_audio_file_selected');
   }
 
   _toggleLangMenu() {
@@ -798,6 +858,7 @@ class VideoTranscriber {
   _saveSettings() {
     const s = {
       uiLang:   this.currentLang,
+      inputSourceMode: this.inputSourceMode,
       baseUrl:  this.modelBaseUrl.value,
       apiKey:   this.apiKeyInput.value,
       model:    this.modelSelect.value,
@@ -834,6 +895,7 @@ class VideoTranscriber {
       if (!raw) return;
       const s = JSON.parse(raw);
       if (this.uiLanguages.includes(s.uiLang)) this._savedUiLang = s.uiLang;
+      if (s.inputSourceMode === 'file' || s.inputSourceMode === 'url') this.inputSourceMode = s.inputSourceMode;
       if (s.baseUrl)     this.modelBaseUrl.value = s.baseUrl;
       if (s.apiKey)      this.apiKeyInput.value  = s.apiKey;
       if (s.reasoningEffort) this.reasoningEffortSelect.value = s.reasoningEffort;
@@ -877,6 +939,8 @@ class VideoTranscriber {
           setTimeout(() => this._fetchModels(true), 400);
         }
       }
+      this._renderSelectedAudioFile();
+      this._renderSourceMode();
       this._syncProviderSettings();
     } catch (_) {}
   }
@@ -992,6 +1056,7 @@ class VideoTranscriber {
   _syncProviderSettings() {
     const provider = this.transcriptionProviderSelect?.value || 'groq';
     const useFallback = Boolean(this.useLocalFallbackInput?.checked);
+    const fileMode = this.inputSourceMode === 'file';
     const showGroq = provider === 'groq';
     const showLocal = provider === 'local' || (provider === 'groq' && useFallback);
     const showLocalApi = provider === 'local_api';
@@ -1003,6 +1068,9 @@ class VideoTranscriber {
     if (this.useLocalFallbackRow) {
       this.useLocalFallbackRow.classList.toggle('setting-hidden', provider !== 'groq');
     }
+    if (this.trySubtitlesFirstRow) {
+      this.trySubtitlesFirstRow.classList.toggle('setting-hidden', fileMode);
+    }
     if (this.localModelCustomRow) {
       this.localModelCustomRow.classList.toggle('setting-hidden', !showLocal || !showCustomModel);
     }
@@ -1011,6 +1079,7 @@ class VideoTranscriber {
     if (this.groqModelSelect) this.groqModelSelect.disabled = !showGroq;
     if (this.groqLanguageInput) this.groqLanguageInput.disabled = !showGroq;
     if (this.groqPromptInput) this.groqPromptInput.disabled = !showGroq;
+    if (this.trySubtitlesFirstInput) this.trySubtitlesFirstInput.disabled = fileMode;
     if (this.localBackendSelect) this.localBackendSelect.disabled = !showLocal;
     if (this.localModelPresetSelect) this.localModelPresetSelect.disabled = !showLocal;
     if (this.localModelIdInput) this.localModelIdInput.disabled = !showLocal || !showCustomModel;
@@ -1107,9 +1176,15 @@ class VideoTranscriber {
     if (this.submitBtn.disabled) return;
 
     const url     = this.videoUrlInput.value.trim();
+    const fileMode = this.inputSourceMode === 'file';
+    const audioFile = this.audioFileInput?.files?.[0] || null;
     const sumLang = this.summaryLangSel.value;
 
-    if (!url) { this._showError(this.t('error_invalid_url')); return; }
+    if (fileMode) {
+      if (!audioFile) { this._showError(this.t('error_no_audio_file')); return; }
+    } else if (!url) {
+      this._showError(this.t('error_invalid_url')); return;
+    }
 
     this.currentTask = null;
     this._setLoading(true);
@@ -1118,7 +1193,8 @@ class VideoTranscriber {
 
     try {
       const fd = new FormData();
-      fd.append('url',              url);
+      fd.append('url', fileMode ? '' : url);
+      if (fileMode && audioFile) fd.append('audio_file', audioFile, audioFile.name);
       fd.append('summary_language', sumLang);
 
       const apiKey  = this.apiKeyInput.value.trim();
@@ -1149,7 +1225,7 @@ class VideoTranscriber {
       if (groqLanguage && !['auto', 'auto-detect', 'autodetect', 'detect'].includes(groqLanguage.toLowerCase())) fd.append('groq_language', groqLanguage);
       if (groqPrompt) fd.append('groq_prompt', groqPrompt);
       fd.append('transcription_provider', transcriptionProvider);
-      fd.append('try_subtitles_first', trySubtitlesFirst ? 'true' : 'false');
+      fd.append('try_subtitles_first', (!fileMode && trySubtitlesFirst) ? 'true' : 'false');
       fd.append('use_local_fallback', useLocalFallback ? 'true' : 'false');
       fd.append('local_backend', localBackend);
       if (localModelPreset) fd.append('local_model_preset', localModelPreset);
@@ -1348,11 +1424,15 @@ class VideoTranscriber {
   _defaultStageSteps(task) {
     if (!task) return [];
     const flow = task.stage_flow || task.transcription_provider_requested || task.transcription_provider_used || 'groq';
+    const fileMode = task.input_source_type === 'file';
     if (flow === 'subtitles') return [{ code: 'checking_subtitles' }, { code: 'saving_transcript' }, { code: 'completed' }];
-    if (flow === 'local_api') return [{ code: 'downloading_audio' }, { code: 'sending_local_api_audio' }, { code: 'saving_transcript' }, { code: 'completed' }];
-    if (flow === 'local') return [{ code: 'downloading_audio' }, { code: 'preparing_audio' }, { code: 'loading_local_model' }, { code: 'transcribing_local_audio' }, { code: 'saving_transcript' }, { code: 'completed' }];
+    if (flow === 'local_api') return [{ code: fileMode ? 'reading_uploaded_audio' : 'downloading_audio' }, { code: 'sending_local_api_audio' }, { code: 'saving_transcript' }, { code: 'completed' }];
+    if (flow === 'local') return [{ code: fileMode ? 'reading_uploaded_audio' : 'downloading_audio' }, { code: 'preparing_audio' }, { code: 'loading_local_model' }, { code: 'transcribing_local_audio' }, { code: 'saving_transcript' }, { code: 'completed' }];
     if (flow === 'groq_local_fallback') return [{ code: 'resolving_groq_audio_url' }, { code: 'switching_to_local_fallback' }, { code: 'downloading_audio' }, { code: 'preparing_audio' }, { code: 'loading_local_model' }, { code: 'transcribing_local_audio' }, { code: 'saving_transcript' }, { code: 'completed' }];
+    if (flow === 'groq_local_file_fallback') return [{ code: 'reading_uploaded_audio' }, { code: 'uploading_groq_audio' }, { code: 'switching_to_local_fallback' }, { code: 'preparing_audio' }, { code: 'loading_local_model' }, { code: 'transcribing_local_audio' }, { code: 'saving_transcript' }, { code: 'completed' }];
+    if (flow === 'groq_file_upload') return [{ code: 'reading_uploaded_audio' }, { code: 'uploading_groq_audio' }, { code: 'saving_transcript' }, { code: 'completed' }];
     if (flow === 'groq_file_fallback') return [{ code: 'resolving_groq_audio_url' }, { code: 'downloading_groq_fallback_audio' }, { code: 'uploading_groq_fallback_audio' }, { code: 'saving_transcript' }, { code: 'completed' }];
+    if (flow === 'groq' && fileMode) return [{ code: 'reading_uploaded_audio' }, { code: 'uploading_groq_audio' }, { code: 'saving_transcript' }, { code: 'completed' }];
     return [{ code: 'resolving_groq_audio_url' }, { code: 'transcribing_groq_audio' }, { code: 'saving_transcript' }, { code: 'completed' }];
   }
 
@@ -1373,8 +1453,9 @@ class VideoTranscriber {
     const flow = task.stage_flow || task.transcription_provider_used || task.transcription_provider_requested;
     if (flow === 'subtitles') return 'subtitle';
     if (flow === 'local_api') return 'local_api';
-    if (flow === 'groq_local_fallback' || task.used_local_fallback) return 'fallback';
+    if (flow === 'groq_local_fallback' || flow === 'groq_local_file_fallback' || task.used_local_fallback) return 'fallback';
     if (flow === 'local') return 'local';
+    if (flow === 'groq_file_upload') return 'groq';
     return 'groq';
   }
 

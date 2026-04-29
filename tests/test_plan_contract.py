@@ -1,10 +1,13 @@
 import asyncio
+import io
 import subprocess
 import shutil
 import sys
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+
+from starlette.datastructures import UploadFile
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -847,6 +850,31 @@ class PlanContractTests(unittest.TestCase):
 
 
 class WindowsLauncherTests(unittest.TestCase):
+    def setUp(self):
+        self._old_tasks = main.tasks
+        self._old_processing_urls = main.processing_urls
+        self._old_active_tasks = main.active_tasks
+        self._old_active_summary_tasks = main.active_summary_tasks
+        self._old_video_processor = main.video_processor
+        self._old_temp_dir = main.TEMP_DIR
+
+        main.tasks = {}
+        main.processing_urls = set()
+        main.active_tasks = {}
+        main.active_summary_tasks = {}
+        self.temp_dir = PROJECT_ROOT / "temp" / "test_windows_launcher"
+        self.temp_dir.mkdir(parents=True, exist_ok=True)
+        main.TEMP_DIR = self.temp_dir
+
+    def tearDown(self):
+        main.tasks = self._old_tasks
+        main.processing_urls = self._old_processing_urls
+        main.active_tasks = self._old_active_tasks
+        main.active_summary_tasks = self._old_active_summary_tasks
+        main.video_processor = self._old_video_processor
+        main.TEMP_DIR = self._old_temp_dir
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
     def test_windows_launcher_uses_production_mode(self):
         launcher = (PROJECT_ROOT / "start_windows.bat").read_text(encoding="utf-8")
 
@@ -866,6 +894,166 @@ class WindowsLauncherTests(unittest.TestCase):
         self.assertIn("AI Video Transcriber startup check", start_script)
         self.assertIn("Development mode - hot reload enabled", start_script)
         self.assertNotIn("开发模式", start_script)
+
+
+    def test_process_video_accepts_uploaded_audio_without_url(self):
+        upload = UploadFile(filename="meeting.wav", file=io.BytesIO(b"fake wav bytes"))
+
+        captured = {}
+
+        def fake_process_video_task(**kwargs):
+            captured.update(kwargs)
+            async def noop():
+                return None
+            return noop()
+
+        class ImmediateTask:
+            def cancel(self):
+                return None
+
+        async def run_endpoint():
+            with patch.object(main, "process_video_task", new=fake_process_video_task):
+                with patch.object(main.asyncio, "create_task", side_effect=lambda coro: ImmediateTask()):
+                    response = await main.process_video(
+                        url="",
+                        audio_file=upload,
+                        transcription_provider="local",
+                        summary_language="en",
+                    )
+            return response
+
+        response = asyncio.run(run_endpoint())
+
+        self.assertIn("task_id", response)
+        task_id = response["task_id"]
+        self.assertIn(task_id, main.tasks)
+        self.assertEqual(main.tasks[task_id]["input_source_type"], "file")
+        self.assertEqual(main.tasks[task_id]["source_file_name"], "meeting.wav")
+        self.assertEqual(captured["source_file_name"], "meeting.wav")
+        self.assertTrue(Path(captured["source_file_path"]).exists())
+
+    def test_local_provider_can_transcribe_uploaded_audio_file_without_video_download(self):
+        class FakeVideoProcessor:
+            async def fetch_subtitles(self, url, output_dir):
+                raise AssertionError("subtitle lookup should be skipped for uploaded audio")
+
+            async def download_and_convert(self, url, output_dir):
+                raise AssertionError("video download should not be used for uploaded audio")
+
+        class FakeTranscriber:
+            async def transcribe(self, audio_file, language=""):
+                return {
+                    "markdown": "# Video Transcription\n\nUploaded local transcription",
+                    "language": "en",
+                    "warnings": [],
+                }
+
+        audio_path = self.temp_dir / "uploaded_local.wav"
+        audio_path.write_bytes(b"fake local audio")
+        main.video_processor = FakeVideoProcessor()
+        task_id = "uploaded-local-task"
+        main.tasks[task_id] = {"status": "processing", "url": ""}
+
+        with patch.object(main, "prepare_local_transcriber", return_value=(FakeTranscriber(), "base")), \
+             patch.object(main, "ensure_backend_audio_file", side_effect=lambda path, backend, output_dir: path), \
+             patch.object(main, "backend_dependencies_available", return_value=True):
+            asyncio.run(
+                main.process_video_task(
+                    task_id,
+                    "",
+                    transcription_provider="local",
+                    source_file_path=str(audio_path),
+                    source_file_name="uploaded_local.wav",
+                )
+            )
+
+        task = main.tasks[task_id]
+        self.assertEqual(task["status"], "completed")
+        self.assertEqual(task["transcription_provider_used"], "local")
+        self.assertEqual(task["transcript_source"], "local_audio_file")
+        self.assertIn("Uploaded local transcription", task["transcript"])
+
+    def test_local_api_provider_can_use_uploaded_audio_file_without_video_download(self):
+        class FakeVideoProcessor:
+            async def fetch_subtitles(self, url, output_dir):
+                raise AssertionError("subtitle lookup should be skipped for uploaded audio")
+
+            async def download_and_convert(self, url, output_dir):
+                raise AssertionError("video download should not be used for uploaded audio")
+
+        class FakeLocalAPI:
+            async def transcribe_file(self, audio_file, language="", prompt=""):
+                return {
+                    "markdown": "# Video Transcription\n\nUploaded local api transcription",
+                    "language": "en",
+                }
+
+        audio_path = self.temp_dir / "uploaded_local_api.wav"
+        audio_path.write_bytes(b"fake local api audio")
+        main.video_processor = FakeVideoProcessor()
+        task_id = "uploaded-local-api-task"
+        main.tasks[task_id] = {"status": "processing", "url": ""}
+
+        with patch.object(main, "LocalAPITranscriber", return_value=FakeLocalAPI()):
+            asyncio.run(
+                main.process_video_task(
+                    task_id,
+                    "",
+                    transcription_provider="local_api",
+                    source_file_path=str(audio_path),
+                    source_file_name="uploaded_local_api.wav",
+                    local_api_base_url="http://127.0.0.1:11434/v1",
+                    local_api_model="whisper-large-v3",
+                )
+            )
+
+        task = main.tasks[task_id]
+        self.assertEqual(task["status"], "completed")
+        self.assertEqual(task["transcription_provider_used"], "local_api")
+        self.assertEqual(task["transcript_source"], "local_api_audio_file")
+        self.assertIn("Uploaded local api transcription", task["transcript"])
+
+    def test_groq_provider_can_use_uploaded_audio_file_without_url_resolution(self):
+        class FakeVideoProcessor:
+            async def fetch_subtitles(self, url, output_dir):
+                raise AssertionError("subtitle lookup should be skipped for uploaded audio")
+
+            async def extract_audio_url(self, url):
+                raise AssertionError("audio URL resolution should not run for uploaded audio")
+
+            async def download_and_convert(self, url, output_dir):
+                raise AssertionError("video download should not be used for uploaded audio")
+
+        class FakeGroq:
+            async def transcribe_file(self, audio_file, language="", prompt=""):
+                return {
+                    "markdown": "# Video Transcription\n\nUploaded groq transcription",
+                    "language": "en",
+                }
+
+        audio_path = self.temp_dir / "uploaded_groq.wav"
+        audio_path.write_bytes(b"fake groq audio")
+        main.video_processor = FakeVideoProcessor()
+        task_id = "uploaded-groq-task"
+        main.tasks[task_id] = {"status": "processing", "url": ""}
+
+        with patch.object(main, "GroqURLTranscriber", return_value=FakeGroq()):
+            asyncio.run(
+                main.process_video_task(
+                    task_id,
+                    "",
+                    transcription_provider="groq",
+                    groq_api_key="gsk-test",
+                    source_file_path=str(audio_path),
+                    source_file_name="uploaded_groq.wav",
+                )
+            )
+
+        task = main.tasks[task_id]
+        self.assertEqual(task["status"], "completed")
+        self.assertEqual(task["transcription_provider_used"], "groq")
+        self.assertEqual(task["transcript_source"], "groq_audio_file")
+        self.assertIn("Uploaded groq transcription", task["transcript"])
 
 
 class FrontendContractTests(unittest.TestCase):

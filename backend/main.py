@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Form
+from fastapi import FastAPI, HTTPException, Form, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -159,6 +159,42 @@ def _sanitize_title_for_filename(title: str) -> str:
     # 最长限制，避免过长文件名问题
     return safe[:80] or "untitled"
 
+
+async def _persist_uploaded_audio_file(upload: UploadFile, output_dir: Path) -> tuple[str, str, str]:
+    """Persist an uploaded local audio file to the temp directory for background processing."""
+    original_name = Path(upload.filename or "uploaded-audio").name or "uploaded-audio"
+    suffix = Path(original_name).suffix or ".bin"
+    safe_base = _sanitize_title_for_filename(Path(original_name).stem)
+    stored_name = f"upload_{uuid.uuid4().hex[:8]}_{safe_base}{suffix}"
+    stored_path = output_dir / stored_name
+
+    size = 0
+    try:
+        async with aiofiles.open(stored_path, "wb") as target:
+            while True:
+                chunk = await upload.read(1024 * 1024)
+                if not chunk:
+                    break
+                size += len(chunk)
+                await target.write(chunk)
+    finally:
+        await upload.close()
+
+    if size <= 0:
+        stored_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail="Uploaded audio file is empty.")
+
+    display_title = Path(original_name).stem.strip() or "Uploaded Audio"
+    return str(stored_path), original_name, display_title
+
+
+def _source_reference_line(url: str, source_file_name: str = "") -> str:
+    if url:
+        return f"source: {url}"
+    if source_file_name:
+        return f"source: local file - {source_file_name}"
+    return "source: local file"
+
 def _markdown_to_plain_text(markdown: str) -> str:
     text = str(markdown or "").strip()
     text = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE)
@@ -310,6 +346,8 @@ async def _run_local_transcription(
     local_language: str,
     stage_flow: str = "local",
     try_subtitles_first: bool = True,
+    source_file_path: str = "",
+    source_title: str = "",
 ) -> dict:
     install_constraints = backend_install_constraints(local_backend)
     dependency_stage_code = (
@@ -321,7 +359,11 @@ async def _run_local_transcription(
         *(
             ["checking_subtitles"] if try_subtitles_first else ["subtitle_skipped"]
         ),
-        "downloading_audio",
+        *(
+            ["reading_uploaded_audio"]
+            if source_file_path
+            else ["downloading_audio"]
+        ),
         "preparing_audio",
         *([] if backend_dependencies_available(local_backend) else [dependency_stage_code]),
         "loading_local_model",
@@ -333,13 +375,21 @@ async def _run_local_transcription(
     await _push_task_update(
         task_id,
         progress=30,
-        message=f"Downloading audio for local {local_backend} transcription...",
+        message=(
+            f"Using uploaded audio for local {local_backend} transcription..."
+            if source_file_path
+            else f"Downloading audio for local {local_backend} transcription..."
+        ),
         stage_flow=stage_flow,
         stage_steps=stage_steps,
-        stage_code="downloading_audio",
+        stage_code="reading_uploaded_audio" if source_file_path else "downloading_audio",
     )
 
-    audio_path, video_title = await video_processor.download_and_convert(url, TEMP_DIR)
+    if source_file_path:
+        audio_path = source_file_path
+        video_title = source_title or Path(source_file_path).stem or "uploaded-audio"
+    else:
+        audio_path, video_title = await video_processor.download_and_convert(url, TEMP_DIR)
     backend_audio_path = audio_path
     try:
         await _push_task_update(
@@ -452,7 +502,8 @@ async def get_local_model_capabilities():
 
 @app.post("/api/process-video")
 async def process_video(
-    url: str = Form(...),
+    url: str = Form(default=""),
+    audio_file: UploadFile | None = File(default=None),
     summary_language: str = Form(default="zh"),
     api_key:       str = Form(default=""),
     model_base_url: str = Form(default=""),
@@ -478,26 +529,40 @@ async def process_video(
     """
     处理视频链接，返回转录任务ID。摘要在单独端点中由用户确认后生成。
     """
+    source_file_path = ""
     try:
         _ = (summary_language, api_key, model_base_url, model_id)  # accepted for older clients
+        normalized_url = (url or "").strip()
+        using_uploaded_file = audio_file is not None and bool(getattr(audio_file, "filename", "") or "")
+        if not normalized_url and not using_uploaded_file:
+            raise HTTPException(status_code=400, detail="Either a video URL or a local audio file is required.")
+
+        source_file_name = ""
+        source_title = ""
+        input_source_type = "url"
+        if using_uploaded_file:
+            source_file_path, source_file_name, source_title = await _persist_uploaded_audio_file(audio_file, TEMP_DIR)
+            input_source_type = "file"
+
         # 检查是否已经在处理相同的URL
-        if url in processing_urls:
+        if normalized_url and normalized_url in processing_urls:
             # 查找现有任务
             for tid, task in tasks.items():
-                if task.get("url") == url:
+                if task.get("url") == normalized_url:
                     return {"task_id": tid, "message": "该视频正在处理中，请等待..."}
             
         # 生成唯一任务ID
         task_id = str(uuid.uuid4())
         
         # 标记URL为正在处理
-        processing_urls.add(url)
+        if normalized_url:
+            processing_urls.add(normalized_url)
         
         # 初始化任务状态
         tasks[task_id] = {
             "status": "processing",
             "progress": 0,
-            "message": "开始处理视频...",
+            "message": "Starting audio processing..." if using_uploaded_file else "开始处理视频...",
             "stage_flow": None,
             "stage_steps": [],
             "stage_code": None,
@@ -522,7 +587,9 @@ async def process_video(
             "summary_html_path": None,
             "summary_text_path": None,
             "error": None,
-            "url": url  # 保存URL用于去重
+            "url": normalized_url,  # 保存URL用于去重
+            "input_source_type": input_source_type,
+            "source_file_name": source_file_name,
         }
         save_tasks(tasks)
         
@@ -530,7 +597,7 @@ async def process_video(
         task = asyncio.create_task(
             process_video_task(
                 task_id=task_id,
-                url=url,
+                url=normalized_url,
                 groq_api_key=groq_api_key,
                 groq_model=groq_model,
                 groq_language=groq_language,
@@ -548,13 +615,22 @@ async def process_video(
                 local_api_model=local_api_model,
                 local_api_language=local_api_language,
                 local_api_prompt=local_api_prompt,
+                source_file_path=source_file_path,
+                source_file_name=source_file_name,
+                source_title=source_title,
             )
         )
         active_tasks[task_id] = task
         
         return {"task_id": task_id, "message": "任务已创建，正在处理中..."}
         
+    except HTTPException:
+        if source_file_path:
+            Path(source_file_path).unlink(missing_ok=True)
+        raise
     except Exception as e:
+        if source_file_path:
+            Path(source_file_path).unlink(missing_ok=True)
         logger.error(f"处理视频时出错: {str(e)}")
         raise HTTPException(status_code=500, detail=f"处理失败: {str(e)}")
 
@@ -578,6 +654,9 @@ async def process_video_task(
     local_api_model: str = "",
     local_api_language: str = "",
     local_api_prompt: str = "",
+    source_file_path: str = "",
+    source_file_name: str = "",
+    source_title: str = "",
     skip_subtitles: bool | None = None,
 ):
     """Asynchronously process a transcription task."""
@@ -585,14 +664,17 @@ async def process_video_task(
         requested_provider = (transcription_provider or "groq").strip().lower()
         if requested_provider not in {"groq", "local", "local_api"}:
             raise Exception(f"Unsupported transcription provider: {transcription_provider}")
+        using_uploaded_file = bool(source_file_path)
+        display_source_name = source_file_name or (Path(source_file_path).name if source_file_path else "")
+        display_source_title = source_title or (Path(source_file_path).stem if source_file_path else "")
 
         normalized_local_backend = (local_backend or DEFAULT_LOCAL_BACKEND).strip().lower()
         if normalized_local_backend not in {"whisper", "parakeet"}:
             raise Exception(f"Unsupported local backend: {local_backend}")
 
-        should_try_subtitles = bool(try_subtitles_first)
+        should_try_subtitles = bool(try_subtitles_first) and not using_uploaded_file
         if skip_subtitles is not None:
-            should_try_subtitles = not skip_subtitles
+            should_try_subtitles = (not skip_subtitles) and not using_uploaded_file
 
         normalized_local_language = (local_language or "").strip()
         if normalized_local_language.lower() in {"auto", "auto-detect", "autodetect", "detect"}:
@@ -625,8 +707,11 @@ async def process_video_task(
                     if should_try_subtitles
                     else ["subtitle_skipped"]
                 ),
-                "resolving_groq_audio_url",
-                "transcribing_groq_audio",
+                *(
+                    ["reading_uploaded_audio", "uploading_groq_audio"]
+                    if using_uploaded_file
+                    else ["resolving_groq_audio_url", "transcribing_groq_audio"]
+                ),
                 "saving_transcript",
                 "completed",
             )
@@ -637,7 +722,11 @@ async def process_video_task(
                     if should_try_subtitles
                     else ["subtitle_skipped"]
                 ),
-                "downloading_audio",
+                *(
+                    ["reading_uploaded_audio"]
+                    if using_uploaded_file
+                    else ["downloading_audio"]
+                ),
                 "sending_local_api_audio",
                 "saving_transcript",
                 "completed",
@@ -649,7 +738,11 @@ async def process_video_task(
                     if should_try_subtitles
                     else ["subtitle_skipped"]
                 ),
-                "downloading_audio",
+                *(
+                    ["reading_uploaded_audio"]
+                    if using_uploaded_file
+                    else ["downloading_audio"]
+                ),
                 "preparing_audio",
                 "loading_local_model",
                 "transcribing_local_audio",
@@ -661,10 +754,18 @@ async def process_video_task(
             task_id,
             status="processing",
             progress=10,
-            message="Checking video subtitles...",
+            message=(
+                "Using uploaded audio file..."
+                if using_uploaded_file
+                else "Checking video subtitles..."
+            ),
             stage_flow=initial_stage_flow,
             stage_steps=initial_stage_steps,
-            stage_code="checking_subtitles" if should_try_subtitles else "subtitle_skipped",
+            stage_code=(
+                "checking_subtitles"
+                if should_try_subtitles
+                else ("reading_uploaded_audio" if using_uploaded_file else "subtitle_skipped")
+            ),
         )
         tasks[task_id].update({
             "transcription_provider_requested": requested_provider,
@@ -673,11 +774,21 @@ async def process_video_task(
             "local_model_used": None,
             "used_local_fallback": False,
             "warnings": [],
+            "input_source_type": "file" if using_uploaded_file else "url",
+            "source_file_name": display_source_name,
         })
         save_tasks(tasks)
         await asyncio.sleep(0.1)
 
-        if not should_try_subtitles:
+        if using_uploaded_file:
+            subtitle_text, sub_title, sub_lang, subtitle_source = None, None, None, None
+            await _push_task_update(
+                task_id,
+                progress=18,
+                message=f"Uploaded audio ready; using {requested_provider} transcription...",
+                stage_code="reading_uploaded_audio",
+            )
+        elif not should_try_subtitles:
             subtitle_text, sub_title, sub_lang, subtitle_source = None, None, None, None
             await _push_task_update(
                 task_id,
@@ -722,6 +833,8 @@ async def process_video_task(
                 local_language=normalized_local_language,
                 stage_flow="local",
                 try_subtitles_first=should_try_subtitles,
+                source_file_path=source_file_path,
+                source_title=display_source_title,
             )
             video_title = local_result["video_title"]
             raw_script = local_result["markdown"]
@@ -740,21 +853,29 @@ async def process_video_task(
             await _push_task_update(
                 task_id,
                 progress=30,
-                message="Downloading audio for local API transcription...",
+                message=(
+                    "Using uploaded audio for local API transcription..."
+                    if using_uploaded_file
+                    else "Downloading audio for local API transcription..."
+                ),
                 stage_flow="local_api",
                 stage_steps=_make_stage_steps(
                     *(["checking_subtitles"] if should_try_subtitles else ["subtitle_skipped"]),
-                    "downloading_audio",
+                    *(["reading_uploaded_audio"] if using_uploaded_file else ["downloading_audio"]),
                     "sending_local_api_audio",
                     "saving_transcript",
                     "completed",
                 ),
-                stage_code="downloading_audio",
+                stage_code="reading_uploaded_audio" if using_uploaded_file else "downloading_audio",
             )
 
             audio_file = ""
             try:
-                audio_file, video_title = await video_processor.download_and_convert(url, TEMP_DIR)
+                if using_uploaded_file:
+                    audio_file = source_file_path
+                    video_title = display_source_title or "uploaded-audio"
+                else:
+                    audio_file, video_title = await video_processor.download_and_convert(url, TEMP_DIR)
                 await _push_task_update(
                     task_id,
                     progress=68,
@@ -790,118 +911,145 @@ async def process_video_task(
             if not groq_api_key.strip():
                 raise Exception("Groq API key is required when provider is Groq and subtitles are unavailable.")
 
-            await _push_task_update(
-                task_id,
-                progress=25,
-                message="No subtitles found; resolving audio URL for Groq...",
-                stage_flow="groq",
-                stage_steps=_make_stage_steps(
-                    *(["checking_subtitles"] if should_try_subtitles else ["subtitle_skipped"]),
-                    "resolving_groq_audio_url",
-                    "transcribing_groq_audio",
-                    "saving_transcript",
-                    "completed",
-                ),
-                stage_code="resolving_groq_audio_url",
-            )
-
             groq = GroqURLTranscriber(api_key=groq_api_key, model=groq_model)
             groq_result = None
-            video_title = "unknown"
+            video_title = display_source_title or "unknown"
             last_media_error = None
             transcript_source = "groq_audio_url"
             groq_failure_for_local_fallback = None
 
             try:
-                for attempt in range(2):
-                    if attempt:
-                        await _push_task_update(
-                            task_id,
-                            progress=42,
-                            message="Groq could not read the previous audio URL; refreshing URL and retrying...",
-                            stage_code="retrying_groq_audio_url",
-                        )
-
-                    audio_info = await video_processor.extract_audio_url(url)
-                    video_title = audio_info.get("title") or video_title
-
+                if using_uploaded_file:
                     await _push_task_update(
                         task_id,
-                        progress=45 if attempt == 0 else 55,
-                        message="Audio URL resolved; sending to Groq transcription...",
-                        stage_code="transcribing_groq_audio",
+                        progress=30,
+                        message="Preparing uploaded audio for Groq transcription...",
+                        stage_flow="groq_file_upload",
+                        stage_steps=_make_stage_steps(
+                            "reading_uploaded_audio",
+                            "uploading_groq_audio",
+                            "saving_transcript",
+                            "completed",
+                        ),
+                        stage_code="reading_uploaded_audio",
+                    )
+                    await _push_task_update(
+                        task_id,
+                        progress=58,
+                        message="Uploading audio file to Groq transcription...",
+                        stage_code="uploading_groq_audio",
+                    )
+                    groq_result = await groq.transcribe_file(
+                        source_file_path,
+                        language=groq_language.strip(),
+                        prompt=groq_prompt.strip(),
+                    )
+                    transcript_source = "groq_audio_file"
+                else:
+                    await _push_task_update(
+                        task_id,
+                        progress=25,
+                        message="No subtitles found; resolving audio URL for Groq...",
+                        stage_flow="groq",
+                        stage_steps=_make_stage_steps(
+                            *(["checking_subtitles"] if should_try_subtitles else ["subtitle_skipped"]),
+                            "resolving_groq_audio_url",
+                            "transcribing_groq_audio",
+                            "saving_transcript",
+                            "completed",
+                        ),
+                        stage_code="resolving_groq_audio_url",
                     )
 
-                    try:
-                        groq_result = await groq.transcribe_url(
-                            audio_info["audio_url"],
-                            language=groq_language.strip(),
-                            prompt=groq_prompt.strip(),
-                        )
-                        break
-                    except GroqTranscriptionError as e:
-                        if _is_groq_media_retrieval_error(e):
-                            last_media_error = e
-                            if attempt == 0:
-                                logger.warning("Groq could not read audio URL, refreshing and retrying: %s", e)
-                                continue
-                            break
-                        raise
-
-                if groq_result is None and last_media_error:
-                    audio_file = ""
-                    try:
-                        await _push_task_update(
-                            task_id,
-                            progress=62,
-                            message="Groq could not fetch the media URL; downloading audio locally for file upload...",
-                            stage_flow="groq_file_fallback",
-                            stage_steps=_make_stage_steps(
-                                *(["checking_subtitles"] if should_try_subtitles else ["subtitle_skipped"]),
-                                "resolving_groq_audio_url",
-                                "retrying_groq_audio_url",
-                                "downloading_groq_fallback_audio",
-                                "uploading_groq_fallback_audio",
-                                "saving_transcript",
-                                "completed",
-                            ),
-                            stage_code="downloading_groq_fallback_audio",
-                        )
-
-                        if hasattr(video_processor, "download_audio_for_upload"):
-                            download_for_upload = video_processor.download_audio_for_upload
-                        else:
-                            download_for_upload = video_processor.download_and_convert
-                        audio_file, downloaded_title = await download_for_upload(url, TEMP_DIR)
-                        video_title = downloaded_title or video_title
-
-                        await _push_task_update(
-                            task_id,
-                            progress=72,
-                            message="Uploading local audio file to Groq transcription...",
-                            stage_code="uploading_groq_fallback_audio",
-                        )
-
-                        groq_result = await groq.transcribe_file(
-                            audio_file,
-                            language=groq_language.strip(),
-                            prompt=groq_prompt.strip(),
-                        )
-                        transcript_source = "groq_audio_file"
-                    except Exception as file_error:
-                        raise GroqTranscriptionError(
-                            _format_groq_transcription_error(
-                                last_media_error,
-                                retried=True,
-                                file_fallback_error=file_error,
+                    for attempt in range(2):
+                        if attempt:
+                            await _push_task_update(
+                                task_id,
+                                progress=42,
+                                message="Groq could not read the previous audio URL; refreshing URL and retrying...",
+                                stage_code="retrying_groq_audio_url",
                             )
-                        ) from file_error
-                    finally:
-                        if audio_file:
-                            try:
-                                Path(audio_file).unlink(missing_ok=True)
-                            except Exception:
-                                logger.debug("Could not remove temporary audio file: %s", audio_file)
+
+                        audio_info = await video_processor.extract_audio_url(url)
+                        video_title = audio_info.get("title") or video_title
+
+                        await _push_task_update(
+                            task_id,
+                            progress=45 if attempt == 0 else 55,
+                            message="Audio URL resolved; sending to Groq transcription...",
+                            stage_code="transcribing_groq_audio",
+                        )
+
+                        try:
+                            groq_result = await groq.transcribe_url(
+                                audio_info["audio_url"],
+                                language=groq_language.strip(),
+                                prompt=groq_prompt.strip(),
+                            )
+                            break
+                        except GroqTranscriptionError as e:
+                            if _is_groq_media_retrieval_error(e):
+                                last_media_error = e
+                                if attempt == 0:
+                                    logger.warning("Groq could not read audio URL, refreshing and retrying: %s", e)
+                                    continue
+                                break
+                            raise
+
+                    if groq_result is None and last_media_error:
+                        audio_file = ""
+                        try:
+                            await _push_task_update(
+                                task_id,
+                                progress=62,
+                                message="Groq could not fetch the media URL; downloading audio locally for file upload...",
+                                stage_flow="groq_file_fallback",
+                                stage_steps=_make_stage_steps(
+                                    *(["checking_subtitles"] if should_try_subtitles else ["subtitle_skipped"]),
+                                    "resolving_groq_audio_url",
+                                    "retrying_groq_audio_url",
+                                    "downloading_groq_fallback_audio",
+                                    "uploading_groq_fallback_audio",
+                                    "saving_transcript",
+                                    "completed",
+                                ),
+                                stage_code="downloading_groq_fallback_audio",
+                            )
+
+                            if hasattr(video_processor, "download_audio_for_upload"):
+                                download_for_upload = video_processor.download_audio_for_upload
+                            else:
+                                download_for_upload = video_processor.download_and_convert
+                            audio_file, downloaded_title = await download_for_upload(url, TEMP_DIR)
+                            video_title = downloaded_title or video_title
+
+                            await _push_task_update(
+                                task_id,
+                                progress=72,
+                                message="Uploading local audio file to Groq transcription...",
+                                stage_code="uploading_groq_fallback_audio",
+                            )
+
+                            groq_result = await groq.transcribe_file(
+                                audio_file,
+                                language=groq_language.strip(),
+                                prompt=groq_prompt.strip(),
+                            )
+                            transcript_source = "groq_audio_file"
+                        except Exception as file_error:
+                            raise GroqTranscriptionError(
+                                _format_groq_transcription_error(
+                                    last_media_error,
+                                    retried=True,
+                                    file_fallback_error=file_error,
+                                )
+                            ) from file_error
+                        finally:
+                            if audio_file:
+                                try:
+                                    Path(audio_file).unlink(missing_ok=True)
+                                except Exception:
+                                    logger.debug("Could not remove temporary audio file: %s", audio_file)
 
                 if groq_result is None:
                     raise GroqTranscriptionError(
@@ -921,13 +1069,16 @@ async def process_video_task(
                     task_id,
                     progress=78,
                     message=f"Groq failed; falling back to local {normalized_local_backend} transcription...",
-                    stage_flow="groq_local_fallback",
+                    stage_flow="groq_local_file_fallback" if using_uploaded_file else "groq_local_fallback",
                     stage_steps=_make_stage_steps(
                         *(["checking_subtitles"] if should_try_subtitles else ["subtitle_skipped"]),
-                        "resolving_groq_audio_url",
-                        "retrying_groq_audio_url",
+                        *(
+                            ["reading_uploaded_audio", "uploading_groq_audio"]
+                            if using_uploaded_file
+                            else ["resolving_groq_audio_url", "retrying_groq_audio_url"]
+                        ),
                         "switching_to_local_fallback",
-                        "downloading_audio",
+                        *(["reading_uploaded_audio"] if using_uploaded_file else ["downloading_audio"]),
                         "preparing_audio",
                         "loading_local_model",
                         "transcribing_local_audio",
@@ -944,8 +1095,10 @@ async def process_video_task(
                     local_model_preset=local_model_preset,
                     local_model_id=local_model_id,
                     local_language=normalized_local_language,
-                    stage_flow="groq_local_fallback",
+                    stage_flow="groq_local_file_fallback" if using_uploaded_file else "groq_local_fallback",
                     try_subtitles_first=should_try_subtitles,
+                    source_file_path=source_file_path,
+                    source_title=display_source_title,
                 )
                 video_title = local_result["video_title"]
                 raw_script = local_result["markdown"]
@@ -975,7 +1128,8 @@ async def process_video_task(
         safe_title = _sanitize_title_for_filename(video_title)
         raw_md_filename = f"raw_{safe_title}_{short_id}.md"
         raw_md_path = TEMP_DIR / raw_md_filename
-        raw_content = (raw_script or "").strip() + f"\n\nsource: {url}\n"
+        source_reference = _source_reference_line(url, display_source_name)
+        raw_content = (raw_script or "").strip() + f"\n\n{source_reference}\n"
         async with aiofiles.open(raw_md_path, "w", encoding="utf-8") as f:
             await f.write(raw_content)
 
@@ -1000,7 +1154,7 @@ async def process_video_task(
             f"**Transcription Source:** {source_label}\n\n"
             f"{warning_block}"
             f"{(raw_script or '').strip()}\n\n"
-            f"source: {url}\n"
+            f"{source_reference}\n"
         )
 
         script_filename = f"transcript_{safe_title}_{short_id}.md"
@@ -1040,6 +1194,9 @@ async def process_video_task(
             "used_local_fallback": used_local_fallback_flag,
             "warnings": warnings,
             "groq_model": groq_model if transcript_source in {"groq_audio_url", "groq_audio_file"} else None,
+            "url": url,
+            "source_file_name": display_source_name,
+            "input_source_type": "file" if using_uploaded_file else "url",
         }
         task_result["stage_index"], task_result["stage_total"] = _compute_stage_position(
             task_result["stage_steps"],
@@ -1055,11 +1212,15 @@ async def process_video_task(
         processing_urls.discard(url)
         if task_id in active_tasks:
             del active_tasks[task_id]
+        if using_uploaded_file and source_file_path:
+            Path(source_file_path).unlink(missing_ok=True)
     except GroqTranscriptionError as e:
         logger.error(f"Task {task_id} Groq transcription failed: {str(e)}")
         processing_urls.discard(url)
         if task_id in active_tasks:
             del active_tasks[task_id]
+        if using_uploaded_file and source_file_path:
+            Path(source_file_path).unlink(missing_ok=True)
         await _push_task_update(
             task_id,
             status="error",
@@ -1072,6 +1233,8 @@ async def process_video_task(
         processing_urls.discard(url)
         if task_id in active_tasks:
             del active_tasks[task_id]
+        if using_uploaded_file and source_file_path:
+            Path(source_file_path).unlink(missing_ok=True)
         await _push_task_update(
             task_id,
             status="error",

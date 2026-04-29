@@ -217,6 +217,30 @@
     }
 
     /* ── URL row ─────────────────────────────────────────── */
+    .source-mode-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .source-mode-btn {
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text-on-surface);
+      border-radius: 999px;
+      padding: 7px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s, border-color .2s, color .2s;
+    }
+
+    .source-mode-btn.active {
+      background: rgba(138, 138, 138, .18);
+      border-color: var(--accent-dim);
+      color: var(--accent-dim);
+    }
+
     .input-row {
       display: flex;
       gap: 10px;
@@ -257,6 +281,53 @@
     .url-input:focus {
       border-color: var(--accent);
       box-shadow: 0 0 0 3px rgba(138, 138, 138, .22);
+    }
+
+    .file-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 50px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 10px;
+    }
+
+    .file-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+
+    .file-trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text-on-surface);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .file-name {
+      min-width: 0;
+      color: var(--text-dim);
+      font-size: 13px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .btn-go {
@@ -1094,14 +1165,33 @@
       </button>
     </div>
 
-    <!-- URL form -->
+    <!-- Input form -->
     <form id="videoForm" autocomplete="off">
+      <div class="source-mode-row" role="tablist" aria-label="Source mode">
+        <button type="button" id="sourceModeUrl" class="source-mode-btn active" data-source-mode="url">
+          <i class="fas fa-link"></i>
+          <span data-i18n="source_mode_url">Video URL</span>
+        </button>
+        <button type="button" id="sourceModeFile" class="source-mode-btn" data-source-mode="file">
+          <i class="fas fa-file-audio"></i>
+          <span data-i18n="source_mode_file">Local audio file</span>
+        </button>
+      </div>
       <div class="input-row">
-        <div class="url-wrap">
+        <div id="urlInputWrap" class="url-wrap">
           <i class="fas fa-link url-icon"></i>
           <input id="videoUrl" type="url" class="url-input"
             placeholder="Paste YouTube, Tiktok, Bilibili or other platform video URLs..."
-            data-i18n-placeholder="video_url_placeholder" required>
+            data-i18n-placeholder="video_url_placeholder">
+        </div>
+        <div id="audioFileWrap" class="file-wrap setting-hidden">
+          <input id="audioFileInput" class="file-input" type="file"
+            accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.opus,.webm,.mp4">
+          <label for="audioFileInput" class="file-trigger">
+            <i class="fas fa-file-audio"></i>
+            <span data-i18n="choose_audio_file">Choose audio file</span>
+          </label>
+          <div id="audioFileName" class="file-name" data-i18n="no_audio_file_selected">No file selected</div>
         </div>
         <button type="submit" id="submitBtn" class="btn-go">
           <i class="fas fa-search"></i>
@@ -1476,7 +1566,7 @@
 
   </main>
 
-<script src="/static/app.js?v=20260429-parakeet-onnx-fix2"></script>
+<script src="/static/app.js?v=20260429-local-audio-upload"></script>
 </body>
 
 </html>
