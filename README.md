@@ -1,11 +1,11 @@
-<div align="center">
+﻿<div align="center">
 
 # AI Video Transcriber
 
-English | [中文](README_ZH.md)
+English | [дё­ж–‡](README_ZH.md)
 
 
-An AI-powered tool to transcribe and summarize videos and podcasts — supports YouTube, TikTok, Bilibili, Apple Podcasts, SoundCloud, and 30+ platforms.
+An AI-powered tool to transcribe and summarize videos and podcasts вЂ” supports YouTube, TikTok, Bilibili, Apple Podcasts, SoundCloud, and 30+ platforms.
 
 ![Interface](en-video.png)
 
@@ -19,22 +19,22 @@ An AI-powered tool to transcribe and summarize videos and podcasts — supports 
 - User-configurable summary provider via OpenAI-compatible APIs
 - Additional transcript/summary export and UI workflow improvements
 
-## ✨ Features
+## вњЁ Features
 
-- 🎥 **Multi-Platform Support**: Works with YouTube, TikTok, Bilibili, Apple Podcasts, SoundCloud, and 30+ more
-- ⚡ **Optional Subtitle-First Architecture**: You can explicitly choose whether to try YouTube subtitles first before any transcription provider runs.
-- 🗣️ **Selectable Transcription Provider**: Explicitly choose `Groq` or `Local` for transcription.
-- 💻 **Local Model Support**: Run local Faster-Whisper presets (`tiny`, `base`, `small`, `medium`, `large-v3`) or NVIDIA Parakeet presets (`nvidia/parakeet-tdt-0.6b-v3`, `nvidia/parakeet-tdt-0.6b-v2`), or point to a custom local model id/path.
-- 📦 **Selected Model Auto-Install**: When you choose a local backend/model, the app installs missing backend packages and downloads that exact selected model automatically on first use.
-- 🔁 **Groq → Local Fallback**: Optionally fall back to the selected local backend when Groq fails with eligible transient/media-fetch errors.
-- 🤖 **Confirmed Summarization**: Summary generation is a separate user action, so transcript text is not sent to a summary provider until you click **Generate Summary**.
-- 🌍 **Multi-Language Summaries**: Generate intelligent summaries in multiple languages
-- 🔧 **Bring Your Own Model**: Configure any OpenAI-compatible API endpoint (OpenAI, OpenRouter, local LLM, etc.) directly in the UI — enter your API Base URL and API Key, then click **Fetch** to auto-discover all available models and select the one you want
-- 📄 **Markdown and HTML Exports**: Save transcripts as Markdown and summaries as Markdown, HTML, or both
-- 📱 **Mobile-Friendly**: Perfect support for mobile devices
+- рџЋҐ **Multi-Platform Support**: Works with YouTube, TikTok, Bilibili, Apple Podcasts, SoundCloud, and 30+ more
+- вљЎ **Optional Subtitle-First Architecture**: You can explicitly choose whether to try YouTube subtitles first before any transcription provider runs.
+- рџ—ЈпёЏ **Selectable Transcription Provider**: Explicitly choose `Groq` or `Local` for transcription.
+- рџ’» **Local Model Support**: Run local Faster-Whisper presets (`tiny`, `base`, `small`, `medium`, `large-v3`) or NVIDIA Parakeet presets (`nvidia/parakeet-tdt-0.6b-v3`, `nvidia/parakeet-tdt-0.6b-v2`), or point to a custom local model id/path.
+- рџ“¦ **Selected Model Auto-Install**: When you choose a local backend/model, the app installs missing backend packages and downloads that exact selected model automatically on first use.
+- рџ”Ѓ **Groq в†’ Local Fallback**: Optionally fall back to the selected local backend when Groq fails with eligible transient/media-fetch errors.
+- рџ¤– **Confirmed Summarization**: Summary generation is a separate user action, so transcript text is not sent to a summary provider until you click **Generate Summary**.
+- рџЊЌ **Multi-Language Summaries**: Generate intelligent summaries in multiple languages
+- рџ”§ **Bring Your Own Model**: Configure any OpenAI-compatible API endpoint (OpenAI, OpenRouter, local LLM, etc.) directly in the UI вЂ” enter your API Base URL and API Key, then click **Fetch** to auto-discover all available models and select the one you want
+- рџ“„ **Markdown and HTML Exports**: Save transcripts as Markdown and summaries as Markdown, HTML, or both
+- рџ“± **Mobile-Friendly**: Perfect support for mobile devices
 
 
-## 🚀 Quick Start
+## рџљЂ Quick Start
 
 ### Prerequisites
 
@@ -87,7 +87,7 @@ To avoid SSE disconnections during long processing, start in production mode (ho
 python start.py --prod
 ```
 
-This keeps the SSE connection stable throughout long tasks (30–60+ min).
+This keeps the SSE connection stable throughout long tasks (30вЂ“60+ min).
 
 #### Run with explicit env (example)
 
@@ -98,7 +98,7 @@ $env:OPENAI_BASE_URL="https://openrouter.ai/api/v1"  # optional: server-side def
 python start.py --prod
 ```
 
-## 📖 Usage Guide
+## рџ“– Usage Guide
 
 1. **Enter Video URL**: Paste a video link from YouTube, Bilibili, or other supported platforms
 2. **Choose a Transcription Provider**: In **AI Settings**, select `Groq` or `Local`
@@ -109,15 +109,15 @@ python start.py --prod
    - **Fallback**: when provider=`Groq`, optionally enable local fallback
 5. **Configure Summary Provider**: Add your OpenAI-compatible summary endpoint, API key, and model when you want AI summaries
 6. **Start Processing**: Click the **Transcribe** button. The progress bar shows which mode is active:
-   - **Subtitle** — native/manual or automatic subtitles were used
-   - **Groq** — Groq handled transcription
-   - **Local** — a local backend handled transcription
-   - **Local fallback** — Groq failed on an eligible error and the app switched to the local backend
+   - **Subtitle** вЂ” native/manual or automatic subtitles were used
+   - **Groq** вЂ” Groq handled transcription
+   - **Local** вЂ” a local backend handled transcription
+   - **Local fallback** вЂ” Groq failed on an eligible error and the app switched to the local backend
 7. **Review Transcript**: The transcript is shown and saved before any summary request is made
 8. **Generate Summary**: Choose Markdown, HTML, TXT, or Markdown + HTML, then click **Generate Summary**
 9. **Download Files**: Save the transcript or summary from the UI in MD/TXT/PDF, and download generated summary artifacts where available
 
-## 🛠️ Technical Architecture
+## рџ› пёЏ Technical Architecture
 
 ### Backend Stack
 - **FastAPI**: Modern Python web framework
@@ -136,31 +136,31 @@ python start.py --prod
 ### Project Structure
 ```
 AI-Video-Transcriber/
-├── backend/                 # Backend code
-│   ├── main.py             # FastAPI main application
-│   ├── video_processor.py  # Video processing module
-│   ├── groq_transcriber.py # Groq URL transcription module
-│   ├── html_export.py      # Standalone HTML export module
-│   ├── summarizer.py       # Summary module
-│   └── translator.py       # Translation module
-├── static/                 # Frontend files
-│   ├── index.html          # Main page
-│   └── app.js              # Frontend logic
-├── temp/                   # Temporary files directory
-├── .env.example            # Environment variables template
-├── requirements.txt        # Python dependencies
-├── start.py               # Startup script
-├── start_windows.bat      # Windows launcher
-└── README.md              # Project documentation
+в”њв”Ђв”Ђ backend/                 # Backend code
+в”‚   в”њв”Ђв”Ђ main.py             # FastAPI main application
+в”‚   в”њв”Ђв”Ђ video_processor.py  # Video processing module
+в”‚   в”њв”Ђв”Ђ groq_transcriber.py # Groq URL transcription module
+в”‚   в”њв”Ђв”Ђ html_export.py      # Standalone HTML export module
+в”‚   в”њв”Ђв”Ђ summarizer.py       # Summary module
+в”‚   в””в”Ђв”Ђ translator.py       # Translation module
+в”њв”Ђв”Ђ static/                 # Frontend files
+в”‚   в”њв”Ђв”Ђ index.html          # Main page
+в”‚   в””в”Ђв”Ђ app.js              # Frontend logic
+в”њв”Ђв”Ђ temp/                   # Temporary files directory
+в”њв”Ђв”Ђ .env.example            # Environment variables template
+в”њв”Ђв”Ђ requirements.txt        # Python dependencies
+в”њв”Ђв”Ђ start.py               # Startup script
+в”њв”Ђв”Ђ start_windows.bat      # Windows launcher
+в””в”Ђв”Ђ README.md              # Project documentation
 ```
 
-## ⚙️ Configuration Options
+## вљ™пёЏ Configuration Options
 
 ### Environment Variables
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `OPENAI_API_KEY` | API key (server-side default) | - | No — can be set in UI instead |
+| `OPENAI_API_KEY` | API key (server-side default) | - | No вЂ” can be set in UI instead |
 | `HOST` | Server address | `0.0.0.0` | No |
 | `PORT` | Server port | `8001` | No |
 
@@ -184,7 +184,7 @@ AI-Video-Transcriber/
 | `whisper-large-v3-turbo` | Default fast transcription fallback |
 | `whisper-large-v3` | Higher-accuracy multilingual transcription and translation support |
 
-## 🔧 FAQ
+## рџ”§ FAQ
 
 ### Q: Why is transcription slow?
 A: Subtitle extraction is usually fast. Groq speed depends on video length, temporary media URL fetches, and provider response time. Local Whisper/Parakeet speed depends heavily on CPU vs CUDA.
@@ -193,7 +193,7 @@ A: Subtitle extraction is usually fast. Groq speed depends on video length, temp
 A: All platforms supported by yt-dlp, including but not limited to: YouTube, TikTok, Facebook, Instagram, Twitter, Bilibili, Youku, iQiyi, Tencent Video, etc.
 
 ### Q: What if the AI optimization features are unavailable?
-A: AI features require an API key from any OpenAI-compatible provider (OpenAI, OpenRouter, etc.). You can enter it directly in the **AI Settings** panel in the UI — no server restart needed. Alternatively, set `OPENAI_API_KEY` as an environment variable for a server-side default.
+A: AI features require an API key from any OpenAI-compatible provider (OpenAI, OpenRouter, etc.). You can enter it directly in the **AI Settings** panel in the UI вЂ” no server restart needed. Alternatively, set `OPENAI_API_KEY` as an environment variable for a server-side default.
 
 ### Q: I get HTTP 500 errors when starting/using the service. Why?
 A: In most cases this is an environment configuration issue rather than a code bug. Please check:
@@ -240,7 +240,7 @@ curl -I https://www.youtube.com/
 curl -I https://openrouter.ai
 ```
 
-## 🎯 Supported Languages
+## рџЋЇ Supported Languages
 
 ### Transcription
 - YouTube subtitle languages depend on the video's available manual or automatic captions
@@ -261,7 +261,7 @@ curl -I https://openrouter.ai
 - Arabic
 - And more...
 
-## 📈 Performance Tips
+## рџ“€ Performance Tips
 
 - **Hardware Requirements**:
   - Minimum: 4GB RAM, dual-core CPU
@@ -277,7 +277,7 @@ curl -I https://openrouter.ai
   | 15 minutes | ~15s | Usually minutes | Summary is a separate confirmed step |
   | 30+ minutes | ~20s | Depends on API limits | Groq URL/file limits can apply |
 
-## 🤝 Contributing
+## рџ¤ќ Contributing
 
 We welcome Issues and Pull Requests!
 
@@ -295,27 +295,13 @@ We welcome Issues and Pull Requests!
 - [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
 - [OpenAI](https://openai.com/) - Intelligent text processing API
 
-## 📞 Contact
+## рџ“ћ Contact
 
 For questions or suggestions, please submit an Issue or contact Wendy.
 
 ---
 
-## 🚀 Try the Full Product — sipsip.ai
 
-This tool is the open-source part of **[sipsip.ai](https://sipsip.ai)**.
-
-The full product goes further:
-- 📧 **Daily email briefs** — follow your favorite creators and get an AI-curated digest in your inbox every morning
-- ⚡ Transcribe & summarize any video or podcast on demand
-- 🌐 Multi-language support across all features
-
-**Free to start** — no credit card required.
-
-➡️ [sipsip.ai](https://sipsip.ai)
-
----
-
-## ⭐ Star History
+## в­ђ Star History
 
 If you find this project helpful, please consider giving it a star!
