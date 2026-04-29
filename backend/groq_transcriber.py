@@ -31,6 +31,22 @@ def format_seconds(seconds: float | int | None) -> str:
     if seconds is None:
         return "00:00"
 
+    if isinstance(seconds, str):
+        text = seconds.strip()
+        if not text:
+            return "00:00"
+        if ":" in text:
+            try:
+                parts = [float(part) for part in text.split(":")]
+            except ValueError:
+                return "00:00"
+            total = 0.0
+            for part in parts:
+                total = total * 60 + part
+            seconds = total
+        else:
+            seconds = text
+
     total = int(float(seconds))
     hours = total // 3600
     minutes = (total % 3600) // 60

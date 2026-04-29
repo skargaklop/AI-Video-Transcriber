@@ -9,6 +9,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "backend"))
 from groq_transcriber import (  # noqa: E402
     MultipartFile,
     build_multipart_form_data,
+    format_seconds,
     format_transcription_markdown,
     prepare_groq_payload,
 )
@@ -37,6 +38,11 @@ class GroqTranscriberTests(unittest.TestCase):
 
         self.assertIn("## Transcription Content", result)
         self.assertIn("Plain transcription text", result)
+
+    def test_formats_preformatted_timestamp_strings(self):
+        self.assertEqual(format_seconds("00:00"), "00:00")
+        self.assertEqual(format_seconds("00:03"), "00:03")
+        self.assertEqual(format_seconds("01:02:03"), "01:02:03")
 
     def test_prepare_groq_payload_uses_url_not_file(self):
         payload = prepare_groq_payload(
