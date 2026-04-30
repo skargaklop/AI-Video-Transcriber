@@ -12,20 +12,20 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     :root {
-      --bg: #303030;
-      --surface: #ebebeb;
-      --surface-2: #e0e0e0;
-      --surface-3: #505050;
-      --border: #5a5a5a;
-      --border-light: #888888;
-      --accent: #8a8a8a;
-      --accent-h: #9e9e9e;
-      --accent-dim: #606060;
-      --accent-text: #909090;
-      --text: #e0e0e0;
-      --text-on-surface: #2a2a2a;
-      --text-muted: #8a8a8a;
-      --text-dim: #787878;
+      --bg: #292d34;
+      --surface: #30353f;
+      --surface-2: #3a404c;
+      --surface-3: #4a505c;
+      --border: #444b59;
+      --border-light: #525a69;
+      --accent: #f29a4a;
+      --accent-h: #ffaa5a;
+      --accent-dim: #cc7d36;
+      --accent-text: #f29a4a;
+      --text: #f0f2f5;
+      --text-on-surface: #e4e7ec;
+      --text-muted: #9aa0b1;
+      --text-dim: #7d8495;
       --success: #6aab94;
       --error: #e07878;
       --r: 12px;
@@ -137,8 +137,8 @@
     }
 
     .lang-option.active {
-      color: var(--text-on-surface);
-      background: rgba(138, 138, 138, .15);
+      color: var(--accent);
+      background: rgba(242, 154, 74, 0.1);
     }
 
     .lang-option.active::after {
@@ -236,9 +236,9 @@
     }
 
     .source-mode-btn.active {
-      background: rgba(138, 138, 138, .18);
-      border-color: var(--accent-dim);
-      color: var(--accent-dim);
+      background: rgba(242, 154, 74, 0.1);
+      border-color: var(--accent);
+      color: var(--accent);
     }
 
     .input-row {
@@ -264,8 +264,9 @@
 
     .url-input {
       width: 100%;
-      background: var(--surface);
-      border: 1px solid var(--border);
+      background: #1f2228;
+      border: 1px solid var(--accent);
+      box-shadow: 0 0 8px rgba(242, 154, 74, 0.2);
       border-radius: 10px;
       color: var(--text-on-surface);
       font-size: 15px;
@@ -280,7 +281,7 @@
 
     .url-input:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(138, 138, 138, .22);
+      box-shadow: 0 0 12px rgba(242, 154, 74, 0.4), 0 0 0 1px var(--accent);
     }
 
     .file-wrap {
@@ -289,8 +290,9 @@
       align-items: center;
       gap: 10px;
       min-height: 50px;
-      background: var(--surface);
-      border: 1px solid var(--border);
+      background: #1f2228;
+      border: 1px solid var(--accent);
+      box-shadow: 0 0 8px rgba(242, 154, 74, 0.2);
       border-radius: 10px;
       padding: 8px 10px;
     }
@@ -331,11 +333,11 @@
     }
 
     .btn-go {
-      background: var(--accent);
-      color: var(--text-on-surface);
-      border: none;
+      background: #1f2228;
+      color: var(--accent);
+      border: 1px solid var(--accent);
       border-radius: 10px;
-      padding: 13px 22px;
+      padding: 12px 22px;
       font-size: 15px;
       font-weight: 600;
       cursor: pointer;
@@ -344,11 +346,12 @@
       gap: 8px;
       white-space: nowrap;
       flex-shrink: 0;
-      transition: background .2s, transform .1s, opacity .2s;
+      transition: background .2s, transform .1s, opacity .2s, box-shadow .2s;
     }
 
     .btn-go:hover {
-      background: var(--accent-h);
+      background: rgba(242, 154, 74, 0.1);
+      box-shadow: 0 0 10px rgba(242, 154, 74, 0.3);
     }
 
     .btn-go:active {
@@ -428,7 +431,7 @@
 
     .inline-lang-select:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(138, 138, 138, .22);
+      box-shadow: 0 0 0 1px var(--accent), 0 0 8px rgba(242, 154, 74, 0.2);
     }
 
     .inline-lang-select option {
@@ -511,7 +514,7 @@
     .s-input:focus,
     .s-select:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(138, 138, 138, .22);
+      box-shadow: 0 0 0 1px var(--accent), 0 0 8px rgba(242, 154, 74, 0.2);
     }
 
     .check-row {
