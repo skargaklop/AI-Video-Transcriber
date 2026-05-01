@@ -31,6 +31,41 @@ Transcribe videos or local audio files and generate AI summaries with explicit p
 - UI export to MD, TXT, and PDF
 - Generated summary artifact formats: Markdown, HTML, TXT, or Markdown + HTML
 
+## CLI Usage
+
+A command-line interface is available for scripting, CI, and agent use.
+
+```bash
+# Transcribe a video URL (local Whisper, no API key needed)
+avt transcribe --url "https://youtu.be/VIDEO_ID" --provider local
+
+# Transcribe with Groq
+avt transcribe --url "https://youtu.be/VIDEO_ID" --provider groq --groq-api-key "$GROQ_API_KEY"
+
+# Transcribe a local audio file
+avt transcribe --file recording.mp3 --provider groq --groq-api-key "$GROQ_API_KEY"
+
+# Summarize a completed transcription
+avt summarize --task-id "TASK_ID" --openai-api-key "$OPENAI_API_KEY" --summary-language en
+
+# Transcribe + summarize in one step
+avt pipeline --url "https://youtu.be/VIDEO_ID" \
+    --provider groq --groq-api-key "$GROQ_API_KEY" \
+    --openai-api-key "$OPENAI_API_KEY" --summary-language en
+
+# List / inspect / delete tasks
+avt tasks --list
+avt tasks --get "TASK_ID"
+avt tasks --delete "TASK_ID"
+
+# Machine-readable capability manifest (for AI agents)
+avt --agent-help
+```
+
+The `avt` command is registered on PATH when you run `start_windows.bat` and accept the PATH prompt (or manually via `pip install -e .` from the project root). If not on PATH, use `python cli.py` instead.
+
+Full flag reference, output schemas, and workflow patterns are in [`ai-video-transcriber/SKILL.md`](ai-video-transcriber/SKILL.md).
+
 ## Quick Start
 
 ### Prerequisites

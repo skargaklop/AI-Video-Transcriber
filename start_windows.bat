@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 set "VENV_MODE=auto"
@@ -61,6 +61,29 @@ if errorlevel 1 (
   echo ERROR: pip install failed. Make sure Python is installed and on your PATH.
   pause
   exit /b 1
+)
+
+REM --- Register avt CLI on PATH (asks once) ---
+set "AVT_SKIP=0"
+if exist ".venv\Scripts\avt.exe" set "AVT_SKIP=1"
+if exist ".avt-path-declined" set "AVT_SKIP=1"
+if "!AVT_SKIP!"=="0" (
+  echo.
+  echo  Add "avt" command to PATH for global calling? [y/n]
+  set /p "AVT_CHOICE=> "
+  if /I "!AVT_CHOICE!"=="y" (
+    echo Installing avt CLI entry point...
+    "%PYTHON_CMD%" -m pip install -e . --quiet 2>nul
+    if errorlevel 1 (
+      echo WARNING: avt CLI installation failed. You can still use "python cli.py".
+    ) else (
+      echo Done. You can now run "avt" from any terminal in this project.
+    )
+  ) else (
+    echo.>"%~dp0.avt-path-declined"
+    echo Skipped. Run "pip install -e ." later if you change your mind.
+  )
+  echo.
 )
 
 set PORT=8001
