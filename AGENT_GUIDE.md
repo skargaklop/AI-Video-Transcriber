@@ -49,10 +49,22 @@ python cli.py tasks --delete <ID>
 | `--skip-subtitles` | boolean | `false` | | Skip YouTube subtitle extraction |
 | `--local-backend` | enum | `whisper` | | `whisper` or `parakeet` |
 | `--local-model` | string | `base` | | Local model preset or ID |
+| `--local-api-base-url` | string | | | Local API endpoint URL (for `local_api`) |
+| `--local-api-key` | string | | | Local API key (for `local_api`) |
+| `--local-api-model` | string | | | Local API model name (for `local_api`) |
+| `--local-api-language` | string | | | Local API language code (for `local_api`) |
+| `--local-api-prompt` | string | | | Local API prompt (for `local_api`) |
 | `--output` | string | | | Write output to file path |
 | `--format` | enum | `json` | | `json`, `markdown`, or `txt` |
 
-### summarize / pipeline (summary flags)
+### summarize (source flags — not available in pipeline)
+
+| Flag | Type | Default | Env Var | Description |
+|------|------|---------|---------|-------------|
+| `--task-id` | string | | | Task ID from prior transcribe run |
+| `--transcript-file` | string | | | Path to transcript text file |
+
+### summarize / pipeline (summary config flags)
 
 | Flag | Type | Default | Env Var | Description |
 |------|------|---------|---------|-------------|
@@ -126,7 +138,10 @@ python cli.py tasks --delete <ID>
 ### tasks --list
 ```json
 {
-  "tasks": ["array of task objects"]
+  "tasks": [
+    {"task_id": "uuid", "status": "completed", "video_title": "...", ...},
+    {"task_id": "uuid", "status": "completed", "video_title": "...", ...}
+  ]
 }
 ```
 

@@ -450,6 +450,9 @@ def cmd_summarize(args) -> dict:
 
 
 def cmd_pipeline(args) -> dict:
+    # Transcribe first, then feed the resulting task_id into summarize.
+    # pipeline's argparse only has config flags (no --task-id/--transcript-file),
+    # so we inject them dynamically between steps.
     result = asyncio.run(_run_transcribe(args))
     if result.get("exit_code"):
         return result

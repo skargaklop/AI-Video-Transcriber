@@ -1,3 +1,8 @@
+---
+name: ai-video-transcriber
+description: Transcribe video/audio to text and generate AI summaries via the CLI — use when the user wants to transcribe, summarize, or pipeline video/audio content
+---
+
 # SKILL: AI Video Transcriber CLI
 
 ## Identity
