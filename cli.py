@@ -14,6 +14,8 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT / "backend"))
 
+_quiet_mode = False
+
 AGENT_MANIFEST = {
     "name": "ai-video-transcriber-cli",
     "version": "1.0.0",
@@ -46,6 +48,11 @@ AGENT_MANIFEST = {
                     "default": "whisper",
                 },
                 "--local-model": {"type": "string", "default": "base"},
+                "--local-api-base-url": {"type": "string", "description": "Local API endpoint URL"},
+                "--local-api-key": {"type": "string", "description": "Local API key"},
+                "--local-api-model": {"type": "string", "description": "Local API model name"},
+                "--local-api-language": {"type": "string", "description": "Local API language code"},
+                "--local-api-prompt": {"type": "string", "description": "Local API prompt"},
                 "--output": {"type": "string", "description": "Write transcript to file path"},
                 "--format": {
                     "type": "enum",
@@ -100,7 +107,7 @@ AGENT_MANIFEST = {
         },
         "pipeline": {
             "description": "Transcribe + summarize in one invocation",
-            "notes": "Accepts all flags from both transcribe and summarize",
+            "notes": "Accepts all flags from both transcribe and summarize (except --task-id/--transcript-file, which are auto-set)",
         },
         "tasks": {
             "description": "Manage persisted task records",
@@ -135,10 +142,12 @@ def _load_env() -> None:
 
 
 def _print_progress(task_id: str, task_data: dict) -> None:
+    if _quiet_mode:
+        return
     progress = task_data.get("progress", 0)
     message = task_data.get("message", "")
     stage = task_data.get("stage_code", "")
-    print(f"[{progress:>3d}%] {message}", file=sys.stderr)
+    print(f"[{progress:>3d}%] {message}", file=sys.stderr, flush=True)
 
 
 def _patch_broadcast(main_module) -> None:
@@ -252,6 +261,11 @@ async def _run_transcribe(args) -> dict:
     skip_subtitles = getattr(args, "skip_subtitles", False)
     local_backend = getattr(args, "local_backend", "whisper") or "whisper"
     local_model = getattr(args, "local_model", "base") or "base"
+    local_api_base_url = getattr(args, "local_api_base_url", "") or ""
+    local_api_key = getattr(args, "local_api_key", "") or ""
+    local_api_model = getattr(args, "local_api_model", "") or ""
+    local_api_language = getattr(args, "local_api_language", "") or ""
+    local_api_prompt = getattr(args, "local_api_prompt", "") or ""
 
     if not url and not file_path:
         return {"error": "Either --url or --file is required.", "exit_code": 2}
@@ -321,11 +335,11 @@ async def _run_transcribe(args) -> dict:
         local_model_preset=local_model,
         local_model_id="",
         local_language=language,
-        local_api_base_url="",
-        local_api_key="",
-        local_api_model="",
-        local_api_language=language,
-        local_api_prompt="",
+        local_api_base_url=local_api_base_url,
+        local_api_key=local_api_key,
+        local_api_model=local_api_model,
+        local_api_language=local_api_language or language,
+        local_api_prompt=local_api_prompt,
         source_file_path=source_file_path,
         source_file_name=source_file_name,
         source_title=source_title,
@@ -395,14 +409,16 @@ async def _run_summarize(args) -> dict:
         reasoning_effort=reasoning_effort or None,
     )
 
-    print("[  0%] Generating summary...", file=sys.stderr)
+    if not _quiet_mode:
+        print("[  0%] Generating summary...", file=sys.stderr, flush=True)
     summary = await s.summarize(
         transcript_text,
         language,
         video_title,
         custom_prompt=prompt,
     )
-    print("[100%] Summary complete.", file=sys.stderr)
+    if not _quiet_mode:
+        print("[100%] Summary complete.", file=sys.stderr, flush=True)
 
     result = {
         "status": "completed",
@@ -459,7 +475,7 @@ def cmd_tasks(args) -> dict:
     import main as backend_main
 
     if getattr(args, "list", False):
-        return {"tasks": list(backend_main.tasks.values())}
+        return {"tasks": [{"task_id": k, **v} for k, v in backend_main.tasks.items()]}
 
     get_id = getattr(args, "get", "") or ""
     if get_id:
@@ -509,12 +525,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     # --- summarize ---
     su = subparsers.add_parser("summarize", help="Generate AI summary from transcript")
-    _add_summarize_args(su)
+    _add_summarize_source_args(su)
+    _add_summarize_config_args(su)
 
     # --- pipeline ---
     pl = subparsers.add_parser("pipeline", help="Transcribe + summarize in one shot")
     _add_transcribe_args(pl)
-    _add_summarize_args(pl)
+    _add_summarize_config_args(pl)
 
     # --- tasks ---
     ta = subparsers.add_parser("tasks", help="Manage persisted task records")
@@ -538,15 +555,22 @@ def _add_transcribe_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--skip-subtitles", action="store_true", help="Skip YouTube subtitle extraction")
     p.add_argument("--local-backend", default="whisper", choices=["whisper", "parakeet"], help="Local backend (default: whisper)")
     p.add_argument("--local-model", default="base", help="Local model preset or ID (default: base)")
+    p.add_argument("--local-api-base-url", default="", help="Local API endpoint URL (for provider=local_api)")
+    p.add_argument("--local-api-key", default="", help="Local API key (for provider=local_api)")
+    p.add_argument("--local-api-model", default="", help="Local API model name (for provider=local_api)")
+    p.add_argument("--local-api-language", default="", help="Local API language code (for provider=local_api)")
+    p.add_argument("--local-api-prompt", default="", help="Local API prompt (for provider=local_api)")
     p.add_argument("--output", default="", help="Write output to file path")
     p.add_argument("--format", default="json", choices=["json", "markdown", "txt"], help="Output format (default: json)")
 
 
-def _add_summarize_args(p: argparse.ArgumentParser) -> None:
+def _add_summarize_source_args(p: argparse.ArgumentParser) -> None:
     src = p.add_mutually_exclusive_group()
     src.add_argument("--task-id", default="", help="Task ID from a prior transcribe run")
     src.add_argument("--transcript-file", default="", help="Path to transcript text file")
 
+
+def _add_summarize_config_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--openai-api-key", default="", help="OpenAI API key (or set OPENAI_API_KEY)")
     p.add_argument("--openai-base-url", default="", help="OpenAI base URL (or set OPENAI_BASE_URL)")
     p.add_argument("--model", default="", help="Model name (default: gpt-4o)")
@@ -576,10 +600,8 @@ def main() -> int:
         parser.print_help(sys.stderr)
         return 2
 
-    quiet = getattr(args, "quiet", False)
-    if quiet:
-        global _print_progress
-        _print_progress = lambda *a, **kw: None
+    global _quiet_mode
+    _quiet_mode = getattr(args, "quiet", False)
 
     result: dict
     content_key = "transcript"

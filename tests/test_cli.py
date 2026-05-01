@@ -5,7 +5,7 @@ import os
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -79,6 +79,22 @@ class TestBuildParser(unittest.TestCase):
         self.assertEqual(args.local_model, "base")
         self.assertEqual(args.format, "json")
 
+    def test_transcribe_local_api_args(self):
+        parser = build_parser()
+        args = parser.parse_args([
+            "transcribe", "--url", "http://x", "--provider", "local_api",
+            "--local-api-base-url", "http://localhost:8000",
+            "--local-api-key", "test-key",
+            "--local-api-model", "whisper-large",
+            "--local-api-language", "en",
+            "--local-api-prompt", "test prompt",
+        ])
+        self.assertEqual(args.local_api_base_url, "http://localhost:8000")
+        self.assertEqual(args.local_api_key, "test-key")
+        self.assertEqual(args.local_api_model, "whisper-large")
+        self.assertEqual(args.local_api_language, "en")
+        self.assertEqual(args.local_api_prompt, "test prompt")
+
     def test_summarize_args(self):
         parser = build_parser()
         args = parser.parse_args(["summarize", "--task-id", "abc-123"])
@@ -100,10 +116,17 @@ class TestBuildParser(unittest.TestCase):
 
     def test_pipeline_args(self):
         parser = build_parser()
-        args = parser.parse_args(["pipeline", "--url", "http://x", "--task-id", "abc"])
+        args = parser.parse_args(["pipeline", "--url", "http://x"])
         self.assertEqual(args.command, "pipeline")
         self.assertEqual(args.url, "http://x")
-        self.assertEqual(args.task_id, "abc")
+        # pipeline does not have --task-id / --transcript-file flags
+        self.assertFalse(hasattr(args, "task_id"))
+        self.assertFalse(hasattr(args, "transcript_file"))
+
+    def test_pipeline_has_summarize_config_flags(self):
+        parser = build_parser()
+        args = parser.parse_args(["pipeline", "--url", "http://x", "--openai-api-key", "sk-test"])
+        self.assertEqual(args.openai_api_key, "sk-test")
 
     def test_tasks_args(self):
         parser = build_parser()
@@ -122,16 +145,22 @@ class TestBuildParser(unittest.TestCase):
 
 
 class TestTranscribeCommand(unittest.TestCase):
-    def test_missing_url_and_file(self):
+    def test_missing_url_and_file_exits_2(self):
+        """Without --url or --file, argparse still parses (defaults are ""),
+        but _run_transcribe returns exit_code 2 with a clear message."""
         with patch("sys.argv", ["cli.py", "transcribe"]):
-            code = main()
-            self.assertEqual(code, 2)
+            with patch("builtins.print") as mock_print:
+                code = main()
+                self.assertEqual(code, 2)
+                # Verify the error JSON was printed to stdout
+                output = mock_print.call_args[0][0]
+                result = json.loads(output)
+                self.assertIn("Either --url or --file is required", result["error"])
 
-    @patch("cli.asyncio.run")
-    @patch("cli._patch_broadcast")
+    @patch("cli._run_transcribe")
     @patch("cli._output_result")
-    def test_successful_transcribe(self, mock_output, mock_patch, mock_run):
-        mock_run.return_value = {
+    def test_successful_transcribe(self, mock_output, mock_run_transcribe):
+        mock_run_transcribe.return_value = {
             "task_id": "test-id",
             "status": "completed",
             "video_title": "Test Video",
@@ -146,24 +175,33 @@ class TestTranscribeCommand(unittest.TestCase):
 
 
 class TestSummarizeCommand(unittest.TestCase):
-    def test_missing_task_id_and_file(self):
+    def test_missing_task_id_and_file_exits_2(self):
+        """Without --task-id or --transcript-file, _run_summarize returns
+        exit_code 2 with a clear error message."""
         with patch("sys.argv", ["cli.py", "summarize"]):
-            code = main()
-            self.assertEqual(code, 2)
+            with patch("builtins.print") as mock_print:
+                code = main()
+                self.assertEqual(code, 2)
+                output = mock_print.call_args[0][0]
+                result = json.loads(output)
+                self.assertIn("Either --task-id or --transcript-file is required", result["error"])
 
 
 class TestTasksCommand(unittest.TestCase):
     def test_no_flag_returns_error(self):
         with patch("sys.argv", ["cli.py", "tasks"]):
-            code = main()
-            self.assertEqual(code, 2)
+            with patch("builtins.print") as mock_print:
+                code = main()
+                self.assertEqual(code, 2)
 
-    @patch("cli._patch_broadcast")
-    def test_list_tasks(self, mock_patch):
+    def test_list_tasks_includes_ids(self):
         import main as backend_main
 
         original_tasks = backend_main.tasks.copy()
-        backend_main.tasks["test-id"] = {"status": "completed", "video_title": "Test"}
+        backend_main.tasks = {
+            "test-id-1": {"status": "completed", "video_title": "Test 1"},
+            "test-id-2": {"status": "completed", "video_title": "Test 2"},
+        }
         try:
             with patch("sys.argv", ["cli.py", "tasks", "--list"]):
                 with patch("cli._output_result") as mock_output:
@@ -171,11 +209,14 @@ class TestTasksCommand(unittest.TestCase):
                     self.assertEqual(code, 0)
                     call_args = mock_output.call_args[0][0]
                     self.assertIn("tasks", call_args)
+                    tasks_list = call_args["tasks"]
+                    self.assertEqual(len(tasks_list), 2)
+                    for task in tasks_list:
+                        self.assertIn("task_id", task)
         finally:
             backend_main.tasks = original_tasks
 
-    @patch("cli._patch_broadcast")
-    def test_get_nonexistent_task(self, mock_patch):
+    def test_get_nonexistent_task(self):
         import main as backend_main
 
         original_tasks = backend_main.tasks.copy()
@@ -187,12 +228,11 @@ class TestTasksCommand(unittest.TestCase):
         finally:
             backend_main.tasks = original_tasks
 
-    @patch("cli._patch_broadcast")
-    def test_delete_task(self, mock_patch):
+    def test_delete_task(self):
         import main as backend_main
 
         original_tasks = backend_main.tasks.copy()
-        backend_main.tasks["del-me"] = {"status": "completed"}
+        backend_main.tasks = {"del-me": {"status": "completed"}}
         try:
             with patch("sys.argv", ["cli.py", "tasks", "--delete", "del-me"]):
                 with patch("cli._output_result") as mock_output:
@@ -282,6 +322,31 @@ class TestResolveApiKey(unittest.TestCase):
     def test_empty_when_both_missing(self):
         result = cli._resolve_api_key("", "NONEXISTENT_KEY_12345")
         self.assertEqual(result, "")
+
+
+class TestQuietMode(unittest.TestCase):
+    def test_quiet_mode_suppresses_progress(self):
+        """Verify _print_progress is a no-op when _quiet_mode is True."""
+        original = cli._quiet_mode
+        try:
+            cli._quiet_mode = True
+            with patch("builtins.print") as mock_print:
+                cli._print_progress("test-id", {"progress": 50, "message": "Working..."})
+                mock_print.assert_not_called()
+        finally:
+            cli._quiet_mode = original
+
+    def test_progress_prints_when_not_quiet(self):
+        original = cli._quiet_mode
+        try:
+            cli._quiet_mode = False
+            with patch("builtins.print") as mock_print:
+                cli._print_progress("test-id", {"progress": 50, "message": "Working..."})
+                mock_print.assert_called_once()
+                self.assertIn("50%", mock_print.call_args[0][0])
+                self.assertIn("Working...", mock_print.call_args[0][0])
+        finally:
+            cli._quiet_mode = original
 
 
 if __name__ == "__main__":

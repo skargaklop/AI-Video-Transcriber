@@ -207,7 +207,7 @@ python cli.py summarize \
 python cli.py summarize \
     --task-id "abc-def-123" \
     --openai-api-key "$OPENAI_API_KEY" \
-    --language en
+    --summary-language en
 ```
 
 ### 6. Transcribe with local Whisper, save to file
