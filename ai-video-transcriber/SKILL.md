@@ -172,6 +172,76 @@ python cli.py tasks --get "TASK_UUID"
 python cli.py tasks --delete "TASK_UUID"
 ```
 
+**Output for --list:**
+```json
+{
+  "tasks": [
+    {"task_id": "uuid", "status": "completed", "video_title": "...", ...},
+    {"task_id": "uuid", "status": "completed", "video_title": "...", ...}
+  ]
+}
+```
+
+## All Flags Reference
+
+### transcribe / pipeline (transcription flags)
+
+| Flag | Type | Default | Env Var | Description |
+|------|------|---------|---------|-------------|
+| `--url` | string | | | Video URL (YouTube, etc.) |
+| `--file` | string | | | Local audio/video file path |
+| `--provider` | enum | `groq` | | `groq`, `local`, or `local_api` |
+| `--groq-api-key` | string | | `GROQ_API_KEY` | Groq API key |
+| `--groq-model` | string | `whisper-large-v3-turbo` | | Groq model name |
+| `--language` | string | `auto` | | Language code or `auto` |
+| `--include-timecodes` | boolean | `false` | | Keep timecodes in transcript |
+| `--skip-subtitles` | boolean | `false` | | Skip YouTube subtitle extraction |
+| `--local-backend` | enum | `whisper` | | `whisper` or `parakeet` |
+| `--local-model` | string | `base` | | Local model preset or ID |
+| `--local-api-base-url` | string | | | Local API endpoint URL (for `local_api`) |
+| `--local-api-key` | string | | | Local API key (for `local_api`) |
+| `--local-api-model` | string | | | Local API model name (for `local_api`) |
+| `--local-api-language` | string | | | Local API language code (for `local_api`) |
+| `--local-api-prompt` | string | | | Local API prompt (for `local_api`) |
+| `--output` | string | | | Write output to file path |
+| `--format` | enum | `json` | | `json`, `markdown`, or `txt` |
+
+### summarize (source flags — not available in pipeline)
+
+| Flag | Type | Default | Env Var | Description |
+|------|------|---------|---------|-------------|
+| `--task-id` | string | | | Task ID from prior transcribe run |
+| `--transcript-file` | string | | | Path to transcript text file |
+
+### summarize / pipeline (summary config flags)
+
+| Flag | Type | Default | Env Var | Description |
+|------|------|---------|---------|-------------|
+| `--openai-api-key` | string | | `OPENAI_API_KEY` | OpenAI API key |
+| `--openai-base-url` | string | | `OPENAI_BASE_URL` | OpenAI base URL |
+| `--model` | string | `gpt-4o` | | Model name |
+| `--summary-language` | string | `en` | | Summary language code |
+| `--output-format` | enum | `markdown` | | `markdown`, `html`, or `txt` |
+| `--summary-output` | string | | | Write summary to file path |
+| `--prompt` | string | | | Custom summary instructions |
+| `--reasoning-effort` | enum | | | `none`, `minimal`, `low`, `medium`, `high`, `xhigh` |
+
+### tasks
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--list` | boolean | List all tasks |
+| `--get` | string | Get task by ID |
+| `--delete` | string | Delete task by ID |
+
+### Global flags
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--pretty` | boolean | Human-readable output instead of JSON |
+| `--quiet` | boolean | Suppress progress messages on stderr |
+| `--agent-help` | boolean | Print JSON capability manifest and exit |
+
 ## API Key Sourcing
 
 Keys can be provided via CLI flags or environment variables. **Flags take precedence.**

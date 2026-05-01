@@ -20,7 +20,7 @@ AGENT_MANIFEST = {
     "name": "ai-video-transcriber-cli",
     "version": "1.0.0",
     "description": "CLI for video/audio transcription and AI summarization",
-    "guide": "AGENT_GUIDE.md",
+    "guide": "ai-video-transcriber/SKILL.md",
     "commands": {
         "transcribe": {
             "description": "Transcribe video/audio to text",
