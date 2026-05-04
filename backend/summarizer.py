@@ -1067,7 +1067,8 @@ Core requirements:
             
             # 估算转录文本长度，决定是否需要分块摘要
             estimated_tokens = self._estimate_tokens(transcript)
-            max_summarize_tokens = 4000  # 提高限制，优先使用单文本处理以获得更好的总结质量
+            from settings import load_settings
+            max_summarize_tokens = load_settings().get("summary_chunk_threshold", 15000)
             
             if estimated_tokens <= max_summarize_tokens:
                 # 短文本直接摘要

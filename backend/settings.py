@@ -33,6 +33,7 @@ DEFAULT_SETTINGS = {
     "summary_format": "markdown",
     "summary_prompt": "",
     "reasoning_effort": "",
+    "summary_chunk_threshold": 15000,
 }
 
 _write_lock = threading.Lock()

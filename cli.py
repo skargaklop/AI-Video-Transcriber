@@ -134,6 +134,7 @@ AGENT_MANIFEST = {
                 "--set-groq-key": {"type": "boolean", "description": "Prompt for Groq API key (no echo)"},
                 "--set-openai-key": {"type": "boolean", "description": "Prompt for OpenAI API key (no echo)"},
             },
+            "notes": "Configurable keys include: summary_chunk_threshold (tokens before chunked summarization, default 15000)",
         },
     },
     "exit_codes": {"0": "success", "1": "runtime error", "2": "invalid arguments"},
@@ -550,6 +551,10 @@ def cmd_settings(args) -> dict:
         key, _, value = set_value.partition("=")
         key = key.strip()
         value = value.strip()
+        if value.isdigit():
+            value = int(value)
+        elif value.lower() in ("true", "false"):
+            value = value.lower() == "true"
         current = load_settings()
         if key not in current:
             return {"error": f"Unknown setting: {key}", "exit_code": 2}
