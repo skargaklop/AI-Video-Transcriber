@@ -902,10 +902,10 @@ class VideoTranscriber {
       if (this.uiLanguages.includes(s.uiLang)) this._savedUiLang = s.uiLang;
       if (s.inputSourceMode === 'file' || s.inputSourceMode === 'url') this.inputSourceMode = s.inputSourceMode;
       if (s.baseUrl)     this.modelBaseUrl.value = s.baseUrl;
-      if (s.apiKey)      this.apiKeyInput.value  = s.apiKey;
+      if (s.apiKey && !s.apiKey.includes('...')) this.apiKeyInput.value  = s.apiKey;
       if (s.reasoningEffort) this.reasoningEffortSelect.value = s.reasoningEffort;
       if (s.summaryLang) this.summaryLangSel.value = s.summaryLang;
-      if (s.groqApiKey)  this.groqApiKeyInput.value = s.groqApiKey;
+      if (s.groqApiKey && !s.groqApiKey.includes('...')) this.groqApiKeyInput.value = s.groqApiKey;
       if (s.groqModel)   this.groqModelSelect.value = s.groqModel;
       if (s.groqLanguage) this.groqLanguageInput.value = s.groqLanguage;
       if (s.groqPrompt)  this.groqPromptInput.value = s.groqPrompt;
@@ -917,7 +917,7 @@ class VideoTranscriber {
       if (s.localModelId) this.localModelIdInput.value = s.localModelId;
       if (s.localLanguage) this.localLanguageInput.value = s.localLanguage;
       if (s.localApiBaseUrl) this.localApiBaseUrlInput.value = s.localApiBaseUrl;
-      if (s.localApiKey) this.localApiKeyInput.value = s.localApiKey;
+      if (s.localApiKey && !s.localApiKey.includes('...')) this.localApiKeyInput.value = s.localApiKey;
       if (s.localApiModel) this.localApiModelInput.value = s.localApiModel;
       if (s.localApiLanguage) this.localApiLanguageInput.value = s.localApiLanguage;
       if (s.localApiPrompt) this.localApiPromptInput.value = s.localApiPrompt;
@@ -956,9 +956,9 @@ class VideoTranscriber {
       const resp = await fetch(`${this.apiBase}/settings`);
       if (!resp.ok) return;
       const s = await resp.json();
-      // Server settings take precedence over localStorage for credential/config fields
-      if (s.groq_api_key !== undefined && s.groq_api_key) this.groqApiKeyInput.value = s.groq_api_key;
-      if (s.openai_api_key !== undefined && s.openai_api_key) this.apiKeyInput.value = s.openai_api_key;
+      // Populate config fields from server settings.
+      // Credential fields are skipped because the server returns masked values.
+      // Credentials come from localStorage (where the real values are stored client-side).
       if (s.openai_base_url) this.modelBaseUrl.value = s.openai_base_url;
       if (s.groq_model) this.groqModelSelect.value = s.groq_model;
       if (s.groq_language) this.groqLanguageInput.value = s.groq_language;
