@@ -3,6 +3,7 @@
 
 import argparse
 import asyncio
+import getpass
 import json
 import os
 import shutil
@@ -35,8 +36,8 @@ AGENT_MANIFEST = {
                 },
                 "--groq-api-key": {
                     "type": "string",
-                    "env": "GROQ_API_KEY",
-                    "required_if": "provider=groq",
+                    "description": "Removed — use settings, env var GROQ_API_KEY, or .env",
+                    "removed": True,
                 },
                 "--groq-model": {"type": "string", "default": "whisper-large-v3-turbo"},
                 "--language": {"type": "string", "default": "auto"},
@@ -80,8 +81,16 @@ AGENT_MANIFEST = {
                     "type": "string",
                     "description": "Path to transcript text file",
                 },
-                "--openai-api-key": {"type": "string", "env": "OPENAI_API_KEY"},
-                "--openai-base-url": {"type": "string", "env": "OPENAI_BASE_URL"},
+                "--openai-api-key": {
+                    "type": "string",
+                    "description": "Removed — use settings, env var OPENAI_API_KEY, or .env",
+                    "removed": True,
+                },
+                "--openai-base-url": {
+                    "type": "string",
+                    "description": "Removed — use settings, env var OPENAI_BASE_URL, or .env",
+                    "removed": True,
+                },
                 "--model": {"type": "string", "default": "gpt-4o"},
                 "--summary-language": {"type": "string", "default": "en"},
                 "--output-format": {
@@ -117,9 +126,19 @@ AGENT_MANIFEST = {
                 "--delete": {"type": "string", "description": "Delete task by ID"},
             },
         },
+        "settings": {
+            "description": "View and manage shared settings (settings.json)",
+            "flags": {
+                "--show": {"type": "boolean", "description": "Show current settings (credentials masked)"},
+                "--set": {"type": "string", "description": "Set a key=value pair"},
+                "--set-groq-key": {"type": "boolean", "description": "Prompt for Groq API key (no echo)"},
+                "--set-openai-key": {"type": "boolean", "description": "Prompt for OpenAI API key (no echo)"},
+            },
+        },
     },
     "exit_codes": {"0": "success", "1": "runtime error", "2": "invalid arguments"},
     "env_vars": ["GROQ_API_KEY", "OPENAI_API_KEY", "OPENAI_BASE_URL"],
+    "settings_file": "settings.json",
 }
 
 
@@ -248,13 +267,14 @@ def _markdown_to_plain_text(markdown: str) -> str:
 async def _run_transcribe(args) -> dict:
     import main as backend_main
     from groq_transcriber import DEFAULT_GROQ_MODEL
+    from settings import get_credential
 
     _patch_broadcast(backend_main)
 
     url = getattr(args, "url", "") or ""
     file_path = getattr(args, "file", "") or ""
     provider = getattr(args, "provider", "groq") or "groq"
-    groq_api_key = _resolve_api_key(getattr(args, "groq_api_key", ""), "GROQ_API_KEY")
+    groq_api_key = get_credential("GROQ_API_KEY", "groq_api_key")
     groq_model = getattr(args, "groq_model", "") or DEFAULT_GROQ_MODEL
     language = getattr(args, "language", "") or ""
     include_timecodes = getattr(args, "include_timecodes", False)
@@ -269,6 +289,17 @@ async def _run_transcribe(args) -> dict:
 
     if not url and not file_path:
         return {"error": "Either --url or --file is required.", "exit_code": 2}
+
+    if provider == "groq" and not groq_api_key:
+        return {
+            "error": (
+                "Groq API key is required. Set it via:\n"
+                "  • Environment variable: GROQ_API_KEY\n"
+                "  • GUI settings panel (start the server first)\n"
+                "  • CLI: python cli.py settings --set-groq-key"
+            ),
+            "exit_code": 1,
+        }
 
     source_file_path = ""
     source_file_name = ""
@@ -364,13 +395,14 @@ async def _run_transcribe(args) -> dict:
 async def _run_summarize(args) -> dict:
     import main as backend_main
     from summarizer import Summarizer
+    from settings import get_credential
 
     _patch_broadcast(backend_main)
 
     task_id = getattr(args, "task_id", "") or ""
     transcript_file = getattr(args, "transcript_file", "") or ""
-    openai_api_key = _resolve_api_key(getattr(args, "openai_api_key", ""), "OPENAI_API_KEY")
-    openai_base_url = _resolve_api_key(getattr(args, "openai_base_url", ""), "OPENAI_BASE_URL")
+    openai_api_key = get_credential("OPENAI_API_KEY", "openai_api_key")
+    openai_base_url = get_credential("OPENAI_BASE_URL", "openai_base_url")
     model = getattr(args, "model", "") or "gpt-4o"
     language = getattr(args, "summary_lang", "en") or "en"
     output_format = getattr(args, "output_format", "markdown") or "markdown"
@@ -399,7 +431,15 @@ async def _run_summarize(args) -> dict:
             return {"error": f"No transcript available for task {task_id}", "exit_code": 1}
 
     if not openai_api_key:
-        return {"error": "OpenAI API key is required (--openai-api-key or OPENAI_API_KEY env var).", "exit_code": 1}
+        return {
+            "error": (
+                "OpenAI API key is required. Set it via:\n"
+                "  • Environment variable: OPENAI_API_KEY\n"
+                "  • GUI settings panel (start the server first)\n"
+                "  • CLI: python cli.py settings --set-openai-key"
+            ),
+            "exit_code": 1,
+        }
 
     base_url = openai_base_url or None
     s = Summarizer(
@@ -497,6 +537,42 @@ def cmd_tasks(args) -> dict:
     return {"error": "One of --list, --get, or --delete is required.", "exit_code": 2}
 
 
+def cmd_settings(args) -> dict:
+    from settings import get_masked_settings, load_settings, mask_credential, save_settings
+
+    if getattr(args, "show", False):
+        return get_masked_settings()
+
+    set_value = getattr(args, "set_value", "") or ""
+    if set_value:
+        if "=" not in set_value:
+            return {"error": "--set requires key=value format (e.g. groq_model=whisper-large-v3)", "exit_code": 2}
+        key, _, value = set_value.partition("=")
+        key = key.strip()
+        value = value.strip()
+        current = load_settings()
+        if key not in current:
+            return {"error": f"Unknown setting: {key}", "exit_code": 2}
+        save_settings({key: value})
+        return {key: mask_credential(value) if "key" in key else value}
+
+    if getattr(args, "set_groq_key", False):
+        key = getpass.getpass("Groq API key: ")
+        if not key.strip():
+            return {"error": "No key entered.", "exit_code": 1}
+        save_settings({"groq_api_key": key.strip()})
+        return {"groq_api_key": mask_credential(key.strip())}
+
+    if getattr(args, "set_openai_key", False):
+        key = getpass.getpass("OpenAI API key: ")
+        if not key.strip():
+            return {"error": "No key entered.", "exit_code": 1}
+        save_settings({"openai_api_key": key.strip()})
+        return {"openai_api_key": mask_credential(key.strip())}
+
+    return get_masked_settings()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cli.py",
@@ -542,6 +618,13 @@ def build_parser() -> argparse.ArgumentParser:
     ta.add_argument("--get", metavar="ID", default="", help="Get task by ID")
     ta.add_argument("--delete", metavar="ID", default="", help="Delete task by ID")
 
+    # --- settings ---
+    se = subparsers.add_parser("settings", help="View and manage shared settings")
+    se.add_argument("--show", action="store_true", help="Show current settings (credentials masked)")
+    se.add_argument("--set", dest="set_value", default="", metavar="KEY=VALUE", help="Set a key=value pair")
+    se.add_argument("--set-groq-key", action="store_true", help="Prompt for Groq API key (no echo)")
+    se.add_argument("--set-openai-key", action="store_true", help="Prompt for OpenAI API key (no echo)")
+
     return parser
 
 
@@ -551,7 +634,6 @@ def _add_transcribe_args(p: argparse.ArgumentParser) -> None:
     inp.add_argument("--file", default="", help="Local audio/video file path")
 
     p.add_argument("--provider", default="groq", choices=["groq", "local", "local_api"], help="Transcription provider (default: groq)")
-    p.add_argument("--groq-api-key", default="", help="Groq API key (or set GROQ_API_KEY)")
     p.add_argument("--groq-model", default="", help="Groq model name (default: whisper-large-v3-turbo)")
     p.add_argument("--language", default="", help="Language code or 'auto' (default: auto)")
     p.add_argument("--include-timecodes", action="store_true", help="Keep timecodes in transcript")
@@ -574,8 +656,6 @@ def _add_summarize_source_args(p: argparse.ArgumentParser) -> None:
 
 
 def _add_summarize_config_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--openai-api-key", default="", help="OpenAI API key (or set OPENAI_API_KEY)")
-    p.add_argument("--openai-base-url", default="", help="OpenAI base URL (or set OPENAI_BASE_URL)")
     p.add_argument("--model", default="", help="Model name (default: gpt-4o)")
     p.add_argument("--summary-language", default="en", dest="summary_lang", help="Summary language code (default: en)")
     p.add_argument("--output-format", default="markdown", choices=["markdown", "html", "txt"], help="Summary output format (default: markdown)")
@@ -619,6 +699,8 @@ def main() -> int:
         content_key = "summary"
     elif args.command == "tasks":
         result = cmd_tasks(args)
+    elif args.command == "settings":
+        result = cmd_settings(args)
     else:
         parser.print_help(sys.stderr)
         return 2

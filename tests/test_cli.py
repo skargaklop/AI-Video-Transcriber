@@ -22,12 +22,12 @@ class TestAgentHelp(unittest.TestCase):
         self.assertIsInstance(parsed, dict)
 
     def test_manifest_required_keys(self):
-        for key in ("name", "version", "description", "guide", "commands", "exit_codes", "env_vars"):
+        for key in ("name", "version", "description", "guide", "commands", "exit_codes", "env_vars", "settings_file"):
             self.assertIn(key, AGENT_MANIFEST)
 
     def test_manifest_commands(self):
         commands = AGENT_MANIFEST["commands"]
-        for name in ("transcribe", "summarize", "pipeline", "tasks"):
+        for name in ("transcribe", "summarize", "pipeline", "tasks", "settings"):
             self.assertIn(name, commands)
             self.assertIn("description", commands[name])
 
@@ -122,11 +122,6 @@ class TestBuildParser(unittest.TestCase):
         # pipeline does not have --task-id / --transcript-file flags
         self.assertFalse(hasattr(args, "task_id"))
         self.assertFalse(hasattr(args, "transcript_file"))
-
-    def test_pipeline_has_summarize_config_flags(self):
-        parser = build_parser()
-        args = parser.parse_args(["pipeline", "--url", "http://x", "--openai-api-key", "sk-test"])
-        self.assertEqual(args.openai_api_key, "sk-test")
 
     def test_tasks_args(self):
         parser = build_parser()
@@ -347,6 +342,111 @@ class TestQuietMode(unittest.TestCase):
                 self.assertIn("Working...", mock_print.call_args[0][0])
         finally:
             cli._quiet_mode = original
+
+
+class TestSettingsSubcommand(unittest.TestCase):
+    def test_settings_show_parses(self):
+        parser = build_parser()
+        args = parser.parse_args(["settings", "--show"])
+        self.assertTrue(args.show)
+        self.assertEqual(args.command, "settings")
+
+    def test_settings_set_parses(self):
+        parser = build_parser()
+        args = parser.parse_args(["settings", "--set", "groq_model=test-model"])
+        self.assertEqual(args.set_value, "groq_model=test-model")
+
+    def test_settings_set_groq_key_parses(self):
+        parser = build_parser()
+        args = parser.parse_args(["settings", "--set-groq-key"])
+        self.assertTrue(args.set_groq_key)
+
+    def test_settings_set_openai_key_parses(self):
+        parser = build_parser()
+        args = parser.parse_args(["settings", "--set-openai-key"])
+        self.assertTrue(args.set_openai_key)
+
+    def test_settings_show_returns_masked(self):
+        import tempfile
+        import settings as settings_module
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sf = Path(tmpdir) / "settings.json"
+            sf.write_text('{"groq_api_key": "gsk_test_long_key_12345"}')
+            with patch.object(settings_module, "SETTINGS_FILE", sf):
+                with patch("sys.argv", ["cli.py", "settings", "--show"]):
+                    with patch("cli._output_result") as mock_output:
+                        code = main()
+                        self.assertEqual(code, 0)
+                        call_args = mock_output.call_args[0][0]
+                        self.assertIn("...", call_args["groq_api_key"])
+                        self.assertNotEqual(call_args["groq_api_key"], "gsk_test_long_key_12345")
+
+    def test_settings_set_writes_value(self):
+        import tempfile
+        import settings as settings_module
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sf = Path(tmpdir) / "settings.json"
+            sf.write_text('{}')
+            with patch.object(settings_module, "SETTINGS_FILE", sf):
+                with patch("sys.argv", ["cli.py", "settings", "--set", "groq_model=whisper-large-v3"]):
+                    with patch("cli._output_result") as mock_output:
+                        code = main()
+                        self.assertEqual(code, 0)
+                        saved = json.loads(sf.read_text())
+                        self.assertEqual(saved["groq_model"], "whisper-large-v3")
+
+    def test_settings_set_invalid_format(self):
+        with patch("sys.argv", ["cli.py", "settings", "--set", "no_equals_sign"]):
+            with patch("builtins.print") as mock_print:
+                code = main()
+                self.assertEqual(code, 2)
+                output = mock_print.call_args[0][0]
+                result = json.loads(output)
+                self.assertIn("key=value", result["error"])
+
+    def test_settings_set_unknown_key(self):
+        with patch("sys.argv", ["cli.py", "settings", "--set", "nonexistent_key=value"]):
+            with patch("builtins.print") as mock_print:
+                code = main()
+                self.assertEqual(code, 2)
+                output = mock_print.call_args[0][0]
+                result = json.loads(output)
+                self.assertIn("Unknown setting", result["error"])
+
+
+class TestMissingCredentials(unittest.TestCase):
+    def test_transcribe_missing_groq_key_error(self):
+        """When provider is groq and no key is set, exit with helpful error."""
+        with patch("settings.get_credential", return_value=""):
+            with patch("cli._load_env"):
+                with patch("sys.argv", ["cli.py", "transcribe", "--url", "http://x", "--provider", "groq"]):
+                    with patch("builtins.print") as mock_print:
+                        code = main()
+                        self.assertEqual(code, 1)
+                        output = mock_print.call_args[0][0]
+                        result = json.loads(output)
+                        self.assertIn("GROQ_API_KEY", result["error"])
+                        self.assertIn("settings --set-groq-key", result["error"])
+
+    def test_summarize_missing_openai_key_error(self):
+        """When no OpenAI key is set, exit with helpful error."""
+        import tempfile
+        with patch("settings.get_credential", return_value=""):
+            with patch("cli._load_env"):
+                tf = tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False)
+                tf.write("# Test transcript")
+                tf.close()
+                try:
+                    with patch("sys.argv", ["cli.py", "summarize", "--transcript-file", tf.name]):
+                        with patch("builtins.print") as mock_print:
+                            code = main()
+                            self.assertEqual(code, 1)
+                            output = mock_print.call_args[0][0]
+                            result = json.loads(output)
+                            self.assertIn("OPENAI_API_KEY", result["error"])
+                            self.assertIn("settings --set-openai-key", result["error"])
+                finally:
+                    os.unlink(tf.name)
 
 
 if __name__ == "__main__":

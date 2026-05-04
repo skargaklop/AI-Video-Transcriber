@@ -49,6 +49,9 @@ temp/
 .env.local
 .env.production
 
+# Shared settings (written by GUI/CLI)
+settings.json
+
 # Audio/Video files
 *.mp4
 *.avi

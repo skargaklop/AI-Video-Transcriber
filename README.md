@@ -36,22 +36,28 @@ Transcribe videos or local audio files and generate AI summaries with explicit p
 A command-line interface is available for scripting, CI, and agent use.
 
 ```bash
+# Set credentials first (one-time, prompted with no echo)
+python cli.py settings --set-groq-key
+python cli.py settings --set-openai-key
+
+# Show current settings (credentials masked)
+python cli.py settings --show
+
 # Transcribe a video URL (local Whisper, no API key needed)
 avt transcribe --url "https://youtu.be/VIDEO_ID" --provider local
 
-# Transcribe with Groq
-avt transcribe --url "https://youtu.be/VIDEO_ID" --provider groq --groq-api-key "$GROQ_API_KEY"
+# Transcribe with Groq (key from settings.json or GROQ_API_KEY env var)
+avt transcribe --url "https://youtu.be/VIDEO_ID" --provider groq
 
 # Transcribe a local audio file
-avt transcribe --file recording.mp3 --provider groq --groq-api-key "$GROQ_API_KEY"
+avt transcribe --file recording.mp3 --provider groq
 
 # Summarize a completed transcription
-avt summarize --task-id "TASK_ID" --openai-api-key "$OPENAI_API_KEY" --summary-language en
+avt summarize --task-id "TASK_ID" --summary-language en
 
 # Transcribe + summarize in one step
 avt pipeline --url "https://youtu.be/VIDEO_ID" \
-    --provider groq --groq-api-key "$GROQ_API_KEY" \
-    --openai-api-key "$OPENAI_API_KEY" --summary-language en
+    --provider groq --summary-language en
 
 # List / inspect / delete tasks
 avt tasks --list
@@ -164,6 +170,7 @@ Use `--prod` for long jobs so hot reload does not interrupt the SSE progress str
 AI-Video-Transcriber/
 |-- backend/
 |   |-- main.py
+|   |-- settings.py
 |   |-- groq_transcriber.py
 |   |-- local_transcription.py
 |   |-- parakeet_transcriber.py
@@ -177,6 +184,8 @@ AI-Video-Transcriber/
 |-- temp/
 |-- start.py
 |-- start_windows.bat
+|-- settings.json    (auto-created, gitignored)
+|-- .env             (gitignored)
 `-- requirements.txt
 ```
 
@@ -186,10 +195,11 @@ AI-Video-Transcriber/
 | --- | --- | --- |
 | `HOST` | Bind host | `0.0.0.0` |
 | `PORT` | HTTP port | `8001` |
+| `GROQ_API_KEY` | Groq transcription API key | unset |
 | `OPENAI_API_KEY` | Optional default summary API key | unset |
 | `OPENAI_BASE_URL` | Optional default summary API base URL | set in `start.py` if missing |
 
-You can skip environment variables entirely and enter credentials in the browser UI.
+Credentials can be configured via environment variables, `.env` file, the browser UI settings panel, or the CLI (`python cli.py settings --set-groq-key`). All methods write to `settings.json`, which is shared between GUI and CLI.
 
 ## Local Model Notes
 

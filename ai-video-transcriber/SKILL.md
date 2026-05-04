@@ -20,6 +20,7 @@ Use this CLI when you need to:
 - Generate an AI summary of a transcript
 - Do both in a single step (pipeline)
 - Manage previously created transcription tasks
+- View or configure shared settings and credentials
 
 Do NOT use this CLI for:
 - Real-time streaming transcription
@@ -38,7 +39,32 @@ python cli.py transcribe --help
 python cli.py summarize --help
 python cli.py pipeline --help
 python cli.py tasks --help
+python cli.py settings --help
 ```
+
+## Credential Resolution
+
+Credentials are resolved in priority order (highest → lowest):
+
+1. **Environment variables** (`GROQ_API_KEY`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`)
+2. **`settings.json`** (shared file, written by GUI and CLI)
+3. Hardcoded defaults
+
+**Recommended workflow:**
+```
+1. Start the server (python start.py)
+2. Browser opens → enter all credentials & settings in the GUI
+3. Settings are saved to settings.json on disk
+4. From this point, both GUI and CLI read from the same settings.json
+```
+
+**Alternative — set credentials via CLI:**
+```bash
+python cli.py settings --set-groq-key
+python cli.py settings --set-openai-key
+```
+
+A `.env` file in the project root is auto-loaded. Existing env vars are never overwritten.
 
 ## Commands
 
@@ -49,10 +75,10 @@ Converts a video URL or local audio file into a text transcript.
 **Minimum viable invocation:**
 ```bash
 # From URL (Groq cloud — fastest)
-python cli.py transcribe --url "https://youtu.be/VIDEO_ID" --groq-api-key "gsk-xxx"
+python cli.py transcribe --url "https://youtu.be/VIDEO_ID"
 
 # From local file
-python cli.py transcribe --file /path/to/audio.mp3 --groq-api-key "gsk-xxx"
+python cli.py transcribe --file /path/to/audio.mp3
 ```
 
 **Full control:**
@@ -60,7 +86,6 @@ python cli.py transcribe --file /path/to/audio.mp3 --groq-api-key "gsk-xxx"
 python cli.py transcribe \
     --url "URL" \
     --provider groq \
-    --groq-api-key "gsk-xxx" \
     --groq-model "whisper-large-v3-turbo" \
     --language "en" \
     --include-timecodes \
@@ -97,20 +122,18 @@ Generates an AI summary from an existing transcript.
 
 **From a prior task:**
 ```bash
-python cli.py summarize --task-id "TASK_UUID" --openai-api-key "sk-xxx" --summary-language en
+python cli.py summarize --task-id "TASK_UUID" --summary-language en
 ```
 
 **From a file:**
 ```bash
-python cli.py summarize --transcript-file transcript.md --openai-api-key "sk-xxx" --summary-language en
+python cli.py summarize --transcript-file transcript.md --summary-language en
 ```
 
 **With custom prompt and output:**
 ```bash
 python cli.py summarize \
     --transcript-file transcript.md \
-    --openai-api-key "sk-xxx" \
-    --openai-base-url "https://custom-endpoint/v1" \
     --model "gpt-4o" \
     --summary-language en \
     --prompt "Focus on key technical decisions and action items" \
@@ -137,8 +160,6 @@ Transcribe + summarize in a single invocation. Combines all flags from `transcri
 ```bash
 python cli.py pipeline \
     --url "https://youtu.be/VIDEO_ID" \
-    --groq-api-key "gsk-xxx" \
-    --openai-api-key "sk-xxx" \
     --summary-language en \
     --output-format markdown \
     --summary-output summary.md
@@ -182,49 +203,63 @@ python cli.py tasks --delete "TASK_UUID"
 }
 ```
 
+### 5. settings
+
+View and manage shared settings (`settings.json`).
+
+```bash
+# Show current settings (credentials masked)
+python cli.py settings --show
+
+# Set a single value
+python cli.py settings --set groq_model=whisper-large-v3
+python cli.py settings --set openai_base_url=https://api.openai.com/v1
+
+# Securely set credentials (prompted, no echo)
+python cli.py settings --set-groq-key
+python cli.py settings --set-openai-key
+```
+
 ## All Flags Reference
 
 ### transcribe / pipeline (transcription flags)
 
-| Flag | Type | Default | Env Var | Description |
-|------|------|---------|---------|-------------|
-| `--url` | string | | | Video URL (YouTube, etc.) |
-| `--file` | string | | | Local audio/video file path |
-| `--provider` | enum | `groq` | | `groq`, `local`, or `local_api` |
-| `--groq-api-key` | string | | `GROQ_API_KEY` | Groq API key |
-| `--groq-model` | string | `whisper-large-v3-turbo` | | Groq model name |
-| `--language` | string | `auto` | | Language code or `auto` |
-| `--include-timecodes` | boolean | `false` | | Keep timecodes in transcript |
-| `--skip-subtitles` | boolean | `false` | | Skip YouTube subtitle extraction |
-| `--local-backend` | enum | `whisper` | | `whisper` or `parakeet` |
-| `--local-model` | string | `base` | | Local model preset or ID |
-| `--local-api-base-url` | string | | | Local API endpoint URL (for `local_api`) |
-| `--local-api-key` | string | | | Local API key (for `local_api`) |
-| `--local-api-model` | string | | | Local API model name (for `local_api`) |
-| `--local-api-language` | string | | | Local API language code (for `local_api`) |
-| `--local-api-prompt` | string | | | Local API prompt (for `local_api`) |
-| `--output` | string | | | Write output to file path |
-| `--format` | enum | `json` | | `json`, `markdown`, or `txt` |
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--url` | string | | Video URL (YouTube, etc.) |
+| `--file` | string | | Local audio/video file path |
+| `--provider` | enum | `groq` | `groq`, `local`, or `local_api` |
+| `--groq-model` | string | `whisper-large-v3-turbo` | Groq model name |
+| `--language` | string | `auto` | Language code or `auto` |
+| `--include-timecodes` | boolean | `false` | Keep timecodes in transcript |
+| `--skip-subtitles` | boolean | `false` | Skip YouTube subtitle extraction |
+| `--local-backend` | enum | `whisper` | `whisper` or `parakeet` |
+| `--local-model` | string | `base` | Local model preset or ID |
+| `--local-api-base-url` | string | | Local API endpoint URL (for `local_api`) |
+| `--local-api-key` | string | | Local API key (for `local_api`) |
+| `--local-api-model` | string | | Local API model name (for `local_api`) |
+| `--local-api-language` | string | | Local API language code (for `local_api`) |
+| `--local-api-prompt` | string | | Local API prompt (for `local_api`) |
+| `--output` | string | | Write output to file path |
+| `--format` | enum | `json` | `json`, `markdown`, or `txt` |
 
 ### summarize (source flags — not available in pipeline)
 
-| Flag | Type | Default | Env Var | Description |
-|------|------|---------|---------|-------------|
-| `--task-id` | string | | | Task ID from prior transcribe run |
-| `--transcript-file` | string | | | Path to transcript text file |
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--task-id` | string | | Task ID from prior transcribe run |
+| `--transcript-file` | string | | Path to transcript text file |
 
 ### summarize / pipeline (summary config flags)
 
-| Flag | Type | Default | Env Var | Description |
-|------|------|---------|---------|-------------|
-| `--openai-api-key` | string | | `OPENAI_API_KEY` | OpenAI API key |
-| `--openai-base-url` | string | | `OPENAI_BASE_URL` | OpenAI base URL |
-| `--model` | string | `gpt-4o` | | Model name |
-| `--summary-language` | string | `en` | | Summary language code |
-| `--output-format` | enum | `markdown` | | `markdown`, `html`, or `txt` |
-| `--summary-output` | string | | | Write summary to file path |
-| `--prompt` | string | | | Custom summary instructions |
-| `--reasoning-effort` | enum | | | `none`, `minimal`, `low`, `medium`, `high`, `xhigh` |
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--model` | string | `gpt-4o` | Model name |
+| `--summary-language` | string | `en` | Summary language code |
+| `--output-format` | enum | `markdown` | `markdown`, `html`, or `txt` |
+| `--summary-output` | string | | Write summary to file path |
+| `--prompt` | string | | Custom summary instructions |
+| `--reasoning-effort` | enum | | `none`, `minimal`, `low`, `medium`, `high`, `xhigh` |
 
 ### tasks
 
@@ -233,6 +268,15 @@ python cli.py tasks --delete "TASK_UUID"
 | `--list` | boolean | List all tasks |
 | `--get` | string | Get task by ID |
 | `--delete` | string | Delete task by ID |
+
+### settings
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--show` | boolean | Show current settings (credentials masked) |
+| `--set KEY=VALUE` | string | Set a key=value pair |
+| `--set-groq-key` | boolean | Prompt for Groq API key (no echo) |
+| `--set-openai-key` | boolean | Prompt for OpenAI API key (no echo) |
 
 ### Global flags
 
@@ -244,15 +288,23 @@ python cli.py tasks --delete "TASK_UUID"
 
 ## API Key Sourcing
 
-Keys can be provided via CLI flags or environment variables. **Flags take precedence.**
+Credentials are resolved automatically — no need to pass keys on every invocation.
 
-| Key | Flag | Env Var |
-|-----|------|---------|
-| Groq (transcription) | `--groq-api-key` | `GROQ_API_KEY` |
-| OpenAI (summarization) | `--openai-api-key` | `OPENAI_API_KEY` |
-| OpenAI base URL | `--openai-base-url` | `OPENAI_BASE_URL` |
+**Priority (highest → lowest):**
+1. Environment variables: `GROQ_API_KEY`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`
+2. `settings.json` (shared, written by GUI or `cli.py settings`)
+3. `.env` file (auto-loaded from project root)
 
-A `.env` file in the project root is auto-loaded. Existing env vars are never overwritten.
+**Recommended setup:**
+```bash
+# Option A: Via CLI
+python cli.py settings --set-groq-key
+python cli.py settings --set-openai-key
+
+# Option B: Via GUI (start server, open browser, enter keys in settings panel)
+
+# Option C: Via environment variables or .env file
+```
 
 ## Output Modes
 
@@ -286,8 +338,8 @@ A `.env` file in the project root is auto-loaded. Existing env vars are never ov
 | Error | Cause | Fix |
 |-------|-------|-----|
 | `Either --url or --file is required` | No input source | Add `--url` or `--file` |
-| `Groq API key is required` | Missing key for groq provider | Set `--groq-api-key` or `GROQ_API_KEY` |
-| `OpenAI API key is required` | Missing key for summarization | Set `--openai-api-key` or `OPENAI_API_KEY` |
+| `Groq API key is required` | Missing key for groq provider | Set via env var, GUI, or `settings --set-groq-key` |
+| `OpenAI API key is required` | Missing key for summarization | Set via env var, GUI, or `settings --set-openai-key` |
 | `File not found: <path>` | Invalid `--file` or `--transcript-file` path | Verify file exists |
 | `Task not found: <id>` | Invalid task ID | Run `tasks --list` to find valid IDs |
 | `Local API base URL is required` | `--provider local_api` without URL | Add `--local-api-base-url` |
@@ -298,20 +350,20 @@ A `.env` file in the project root is auto-loaded. Existing env vars are never ov
 ### Pattern A: Transcribe, review, then summarize
 ```bash
 # Step 1: Transcribe
-RESULT=$(python cli.py transcribe --url "URL" --groq-api-key "KEY" --quiet)
+RESULT=$(python cli.py transcribe --url "URL" --quiet)
 TASK_ID=$(echo "$RESULT" | python -c "import sys,json; print(json.load(sys.stdin)['task_id'])")
 
 # Step 2: Inspect transcript
 python cli.py tasks --get "$TASK_ID" --quiet
 
 # Step 3: Summarize
-python cli.py summarize --task-id "$TASK_ID" --openai-api-key "KEY" --quiet
+python cli.py summarize --task-id "$TASK_ID" --quiet
 ```
 
 ### Pattern B: Batch transcribe multiple videos
 ```bash
 for URL in "https://youtu.be/a" "https://youtu.be/b" "https://youtu.be/c"; do
-    python cli.py transcribe --url "$URL" --groq-api-key "KEY" \
+    python cli.py transcribe --url "$URL" \
         --output "transcripts/$(echo $URL | md5sum | cut -c1-8).md" \
         --format markdown --quiet
 done
@@ -322,12 +374,12 @@ done
 TASK_ID="existing-task-uuid"
 
 # Technical summary
-python cli.py summarize --task-id "$TASK_ID" --openai-api-key "KEY" \
+python cli.py summarize --task-id "$TASK_ID" \
     --prompt "Extract all technical details, tools, and architecture decisions" \
     --summary-output tech_summary.md --quiet
 
 # Action items summary
-python cli.py summarize --task-id "$TASK_ID" --openai-api-key "KEY" \
+python cli.py summarize --task-id "$TASK_ID" \
     --prompt "List all action items, deadlines, and assigned owners" \
     --summary-output actions.md --quiet
 ```
@@ -335,6 +387,7 @@ python cli.py summarize --task-id "$TASK_ID" --openai-api-key "KEY" \
 ## Important Notes
 
 - The CLI shares task state with the web UI via `temp/tasks.json`
+- The CLI shares credentials and settings with the GUI via `settings.json`
 - Transcript files are saved in the `temp/` directory
 - The `--file` flag copies the file to `temp/` before processing (original is not modified)
 - `pipeline` runs two separate `asyncio.run()` calls sequentially

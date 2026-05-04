@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Form, File, UploadFile
+from fastapi import FastAPI, HTTPException, Form, File, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -32,6 +32,7 @@ from local_transcription import (
 )
 from summarizer import Summarizer
 from transcript_formatting import format_transcript_without_timecodes
+from settings import get_credential, get_masked_settings, load_settings, save_settings
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -472,6 +473,23 @@ async def read_root():
 async def favicon():
     return FileResponse(str(PROJECT_ROOT / "static" / "favicon.svg"), media_type="image/svg+xml")
 
+@app.get("/api/settings")
+async def read_settings():
+    """Return current settings with credentials masked."""
+    return get_masked_settings()
+
+
+@app.post("/api/settings")
+async def update_settings(request: Request):
+    """Accept JSON body, merge with existing settings, persist to settings.json."""
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+    save_settings(data)
+    return get_masked_settings()
+
+
 @app.post("/api/models")
 async def list_models(
     base_url: str = Form(default=""),
@@ -532,6 +550,9 @@ async def process_video(
     source_file_path = ""
     try:
         _ = (summary_language, api_key, model_base_url, model_id)  # accepted for older clients
+        # Credential fallback: form data → settings.json → env vars
+        if not groq_api_key.strip():
+            groq_api_key = get_credential("GROQ_API_KEY", "groq_api_key")
         normalized_url = (url or "").strip()
         using_uploaded_file = audio_file is not None and bool(getattr(audio_file, "filename", "") or "")
         if not normalized_url and not using_uploaded_file:
@@ -1276,6 +1297,11 @@ async def summarize_transcript(
     normalized_reasoning_effort = reasoning_effort.strip().lower() if isinstance(reasoning_effort, str) else ""
     if normalized_reasoning_effort not in {"", "none", "minimal", "low", "medium", "high", "xhigh"}:
         raise HTTPException(status_code=400, detail="reasoning_effort must be none, minimal, low, medium, high, or xhigh")
+
+    if not api_key.strip():
+        api_key = get_credential("OPENAI_API_KEY", "openai_api_key")
+    if not model_base_url.strip():
+        model_base_url = get_credential("OPENAI_BASE_URL", "openai_base_url")
 
     if not api_key.strip() and not summarizer.is_available():
         tasks[task_id].update({

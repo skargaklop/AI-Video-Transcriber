@@ -552,6 +552,7 @@ class VideoTranscriber {
     this._updateReasoningAvailability();
     this._fetchLocalCapabilities();
     this._syncProviderSettings();
+    this._loadServerSettings();
   }
 
   /* в”Ђв”Ђ Elements в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */
@@ -887,6 +888,10 @@ class VideoTranscriber {
       summarySaveFormat: this.saveSummaryFormatTop.value,
     };
     try { localStorage.setItem('vt_settings', JSON.stringify(s)); } catch (_) {}
+    if (!this._debouncedServerSave) {
+      this._debouncedServerSave = this._debounce(() => this._saveServerSettings(), 500);
+    }
+    this._debouncedServerSave();
   }
 
   _loadSettings() {
@@ -943,6 +948,73 @@ class VideoTranscriber {
       this._renderSourceMode();
       this._syncProviderSettings();
     } catch (_) {}
+  }
+
+  /* ── Server settings sync ────────────────────────────────────────── */
+  async _loadServerSettings() {
+    try {
+      const resp = await fetch(`${this.apiBase}/settings`);
+      if (!resp.ok) return;
+      const s = await resp.json();
+      // Server settings take precedence over localStorage for credential/config fields
+      if (s.groq_api_key !== undefined && s.groq_api_key) this.groqApiKeyInput.value = s.groq_api_key;
+      if (s.openai_api_key !== undefined && s.openai_api_key) this.apiKeyInput.value = s.openai_api_key;
+      if (s.openai_base_url) this.modelBaseUrl.value = s.openai_base_url;
+      if (s.groq_model) this.groqModelSelect.value = s.groq_model;
+      if (s.groq_language) this.groqLanguageInput.value = s.groq_language;
+      if (s.groq_prompt) this.groqPromptInput.value = s.groq_prompt;
+      if (s.transcription_provider) this.transcriptionProviderSelect.value = s.transcription_provider;
+      if (s.summary_language) this.summaryLangSel.value = s.summary_language;
+      if (s.summary_format) this.summaryFormatSel.value = s.summary_format;
+      if (s.summary_prompt) this.summaryPromptInput.value = s.summary_prompt;
+      if (s.reasoning_effort) this.reasoningEffortSelect.value = s.reasoning_effort;
+      this.trySubtitlesFirstInput.checked = s.try_subtitles_first !== false;
+      this.useLocalFallbackInput.checked = Boolean(s.use_local_fallback);
+      if (s.local_backend) this.localBackendSelect.value = s.local_backend;
+      if (s.local_model_preset) this.localModelPresetSelect.value = s.local_model_preset;
+      if (s.local_model_id) this.localModelIdInput.value = s.local_model_id;
+      if (s.local_language) this.localLanguageInput.value = s.local_language;
+      if (s.local_api_base_url) this.localApiBaseUrlInput.value = s.local_api_base_url;
+      if (s.local_api_key) this.localApiKeyInput.value = s.local_api_key;
+      if (s.local_api_model) this.localApiModelInput.value = s.local_api_model;
+      if (s.local_api_language) this.localApiLanguageInput.value = s.local_api_language;
+      if (s.local_api_prompt) this.localApiPromptInput.value = s.local_api_prompt;
+      this.includeTimecodesInput.checked = Boolean(s.include_timecodes);
+      this._syncProviderSettings();
+    } catch (_) {}
+  }
+
+  _saveServerSettings() {
+    const payload = {
+      groq_api_key: this.groqApiKeyInput.value.trim(),
+      openai_api_key: this.apiKeyInput.value.trim(),
+      openai_base_url: this.modelBaseUrl.value.trim(),
+      groq_model: this.groqModelSelect.value,
+      groq_language: this.groqLanguageInput.value.trim(),
+      groq_prompt: this.groqPromptInput.value.trim(),
+      transcription_provider: this.transcriptionProviderSelect.value,
+      try_subtitles_first: this.trySubtitlesFirstInput.checked,
+      use_local_fallback: this.useLocalFallbackInput.checked,
+      local_backend: this.localBackendSelect.value,
+      local_model_preset: this.localModelPresetSelect.value,
+      local_model_id: this.localModelIdInput.value.trim(),
+      local_language: this.localLanguageInput.value.trim(),
+      local_api_base_url: this.localApiBaseUrlInput.value.trim(),
+      local_api_key: this.localApiKeyInput.value.trim(),
+      local_api_model: this.localApiModelInput.value.trim(),
+      local_api_language: this.localApiLanguageInput.value.trim(),
+      local_api_prompt: this.localApiPromptInput.value.trim(),
+      include_timecodes: this.includeTimecodesInput.checked,
+      summary_language: this.summaryLangSel.value,
+      summary_format: this.summaryFormatSel.value,
+      summary_prompt: this.summaryPromptInput.value.trim(),
+      reasoning_effort: this.reasoningEffortSelect.value,
+    };
+    fetch(`${this.apiBase}/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
   }
 
   async _fetchLocalCapabilities() {
