@@ -13,7 +13,7 @@ class BackendImportTests(unittest.TestCase):
         main = importlib.import_module("main")
 
         self.assertTrue(hasattr(main, "app"))
-        self.assertEqual(main.app.title, "AI视频转录器")
+        self.assertEqual(main.app.title, "AI Video Transcriber")
 
 
 if __name__ == "__main__":

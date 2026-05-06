@@ -217,7 +217,7 @@ def resolve_media_redirect_url(
 
 
 class VideoProcessor:
-    """视频处理器，使用yt-dlp获取字幕和直接音频URL。"""
+    """Video processor, uses yt-dlp to get subtitles and direct audio URL."""
     
     def __init__(self):
         self.ydl_opts = {
@@ -230,11 +230,11 @@ class VideoProcessor:
     
     async def fetch_subtitles(self, url: str, output_dir: Path) -> tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
         """
-        先尝试从平台获取字幕文本，比下载音频快得多。
+        Try to get subtitle text from the platform first, which is much faster than downloading audio.
 
         Returns:
             (subtitle_markdown, video_title, language_code)
-            subtitle_markdown 为 None 表示无可用字幕。
+            subtitle_markdown is None means no subtitles available.
         """
         import asyncio
 
@@ -243,7 +243,7 @@ class VideoProcessor:
         sub_dir = output_dir / f"subs_{unique_id}"
 
         try:
-            # 1. 快速探测：获取视频信息和字幕可用性，不下载任何内容
+            # 1. Fast probe: get video info and subtitle availability without downloading anything
             check_opts = {"quiet": True, "no_warnings": True, "noplaylist": True}
             with yt_dlp.YoutubeDL(check_opts) as ydl:
                 info = await asyncio.to_thread(ydl.extract_info, url, False)
@@ -252,30 +252,30 @@ class VideoProcessor:
             manual_subs: dict = info.get("subtitles") or {}
             auto_caps: dict = info.get("automatic_captions") or {}
 
-            # 过滤掉 live_chat 等非语音轨道
+            # Filter out non-speech tracks like live_chat
             manual_langs = [k for k in manual_subs if not k.startswith("live_chat")]
             auto_langs = [k for k in auto_caps if not k.startswith("live_chat")]
 
             if not manual_langs and not auto_langs:
-                logger.info(f"视频无可用字幕: {url}")
+                logger.info(f"Video has no available subtitles: {url}")
                 return None, video_title, None, None
 
-            # 优先手动字幕，其次自动字幕
+            # Prefer manual subtitles, then automatic subtitles
             prefer_manual = bool(manual_langs)
             candidate_langs = manual_langs if prefer_manual else auto_langs
             transcript_source = "youtube_manual_subtitles" if prefer_manual else "youtube_auto_subtitles"
 
-            # 按优先级选语言：英语 > 简体中文 > 繁体中文 > 其他（取第一个）
+            # Select language by priority: English > Simplified Chinese > Traditional Chinese > Others (take the first)
             prefer_lang = select_subtitle_language(
                 manual_subs if prefer_manual else auto_caps,
                 prefer_original=not prefer_manual,
             ) or candidate_langs[0]
             logger.info(
-                f"发现{'手动' if prefer_manual else '自动'}字幕，选用语言: {prefer_lang}"
-                f"（候选 {len(candidate_langs)} 种）"
+                f"Found {'manual' if prefer_manual else 'automatic'} subtitles, selected language: {prefer_lang}"
+                f" ({len(candidate_langs)} candidates available)"
             )
 
-            # 2. 仅下载字幕，跳过音视频
+            # 2. Download subtitles only, skip audio/video
             sub_dir.mkdir(exist_ok=True)
             dl_opts = {
                 "writesubtitles": prefer_manual,
@@ -291,35 +291,35 @@ class VideoProcessor:
             with yt_dlp.YoutubeDL(dl_opts) as ydl:
                 await asyncio.to_thread(ydl.download, [url])
 
-            # 3. 查找下载的字幕文件
+            # 3. Find downloaded subtitle files
             sub_files = list(sub_dir.glob("*.vtt")) + list(sub_dir.glob("*.srt"))
             if not sub_files:
-                logger.warning("字幕下载后未找到文件，回退至Groq URL转录")
+                logger.warning("Subtitle file not found after download, falling back to Groq URL transcription")
                 return None, video_title, None, None
 
             sub_file = sub_files[0]
 
-            # 从文件名提取语言代码 (e.g. sub.en.vtt → en)
+            # Extract language code from filename (e.g. sub.en.vtt → en)
             stem_parts = sub_file.stem.split(".")
             file_lang = stem_parts[-1] if len(stem_parts) > 1 else prefer_lang
 
-            # 4. 解析字幕文件
+            # 4. Parse subtitle file
             if sub_file.suffix == ".vtt":
                 entries = self._parse_vtt(str(sub_file))
             else:
                 entries = self._parse_srt(str(sub_file))
 
             if not entries:
-                logger.warning("字幕解析结果为空，回退至Groq URL转录")
+                logger.warning("Subtitle parse result is empty, falling back to Groq URL transcription")
                 return None, video_title, None, None
 
-            # 5. 格式化为与 Whisper 输出兼容的 Markdown
+            # 5. Format to Markdown compatible with Whisper output
             formatted = self._format_subtitle_entries(entries, file_lang, chapters=info.get("chapters") or [])
-            logger.info(f"字幕获取成功: lang={file_lang}, {len(entries)} 条目")
+            logger.info(f"Subtitle acquired successfully: lang={file_lang}, {len(entries)} entries")
             return formatted, video_title, file_lang, transcript_source
 
         except Exception as e:
-            logger.warning(f"字幕获取失败（将回退至Groq URL转录）: {e}")
+            logger.warning(f"Subtitle acquisition failed (falling back to Groq URL transcription): {e}")
             return None, None, None, None
         finally:
             if sub_dir.exists():
@@ -329,14 +329,14 @@ class VideoProcessor:
                     pass
 
     # ------------------------------------------------------------------
-    # 字幕解析辅助方法
+    # Subtitle parsing helper methods
     # ------------------------------------------------------------------
 
     def _parse_vtt(self, filepath: str) -> list:
-        """解析 WebVTT 字幕文件，返回去重后的条目列表。
+        """Parse WebVTT subtitle file, return deduplicated entry list.
 
-        特别处理 YouTube 自动字幕的「滚动追加」格式：
-        同一句话会被分成多个 cue 逐字追加，只保留每组的「最终版本」。
+        Special handling for YouTube automatic subtitles' 'rolling append' format:
+        The same sentence is split into multiple cues appended word by word, keep only the 'final version' of each group.
         """
         raw_entries = []
         seen_texts: set = set()
@@ -345,10 +345,10 @@ class VideoProcessor:
             with open(filepath, "r", encoding="utf-8") as f:
                 content = f.read()
         except Exception as e:
-            logger.error(f"读取 VTT 文件失败: {e}")
+            logger.error(f"Failed to read VTT file: {e}")
             return []
 
-        # 移除 WEBVTT 文件头，按空行分割 cue 块
+        # Remove WEBVTT file header, split cue blocks by blank lines
         content = re.sub(r"^WEBVTT[^\n]*\n", "", content)
         blocks = re.split(r"\n{2,}", content.strip())
 
@@ -358,7 +358,7 @@ class VideoProcessor:
                 continue
 
             lines = block.split("\n")
-            timing_idx = next((i for i, l in enumerate(lines) if "-->" in l), -1)
+            timing_idx = next((i for i, line in enumerate(lines) if "-->" in line), -1)
             if timing_idx < 0:
                 continue
 
@@ -377,7 +377,7 @@ class VideoProcessor:
             end_str = self._normalize_time(match.group(2))
 
             raw_text = " ".join(text_lines)
-            # 去除 HTML / VTT 内联标签（包括 YouTube 逐字时间码标签）
+            # Remove HTML / VTT inline tags (including YouTube word-by-word timecode tags)
             text = re.sub(r"<[^>]+>", "", raw_text)
             text = (
                 text.replace("&amp;", "&")
@@ -388,7 +388,7 @@ class VideoProcessor:
                     .replace("&quot;", '"')
                     .strip()
             )
-            # 合并行内多余空白
+            # Merge inline extra whitespace
             text = re.sub(r"\s+", " ", text).strip()
 
             if not text or text in seen_texts:
@@ -397,9 +397,9 @@ class VideoProcessor:
             seen_texts.add(text)
             raw_entries.append({"start": start_str, "end": end_str, "text": text})
 
-        # ── 二次去重：过滤 YouTube「滚动追加」的中间状态 ──────────────────
-        # 若条目 i 的文本是条目 i+1 文本的起始子串，则条目 i 是中间状态，丢弃。
-        # 同时丢弃纯空白/单字符的噪音条目。
+        # -- Secondary deduplication: filter intermediate states of YouTube rolling append ----------
+        # If the text of entry i is a starting substring of entry i+1, entry i is an intermediate state, discard it.
+        # Also discard purely blank/single-character noise entries.
         if not raw_entries:
             return []
 
@@ -408,7 +408,7 @@ class VideoProcessor:
             text = entry["text"]
             if len(text) < 2:
                 continue
-            # 检查后续若干条是否以当前文本开头（滚动追加的特征）
+            # Check if subsequent entries start with the current text (feature of rolling append)
             is_intermediate = False
             for j in range(i + 1, min(i + 4, len(raw_entries))):
                 next_text = raw_entries[j]["text"]
@@ -421,7 +421,7 @@ class VideoProcessor:
         return entries
 
     def _parse_srt(self, filepath: str) -> list:
-        """解析 SRT 字幕文件，返回去重后的条目列表。"""
+        """Parse SRT subtitle file, return deduplicated entry list."""
         entries = []
         seen_texts: set = set()
 
@@ -429,14 +429,14 @@ class VideoProcessor:
             with open(filepath, "r", encoding="utf-8") as f:
                 content = f.read()
         except Exception as e:
-            logger.error(f"读取 SRT 文件失败: {e}")
+            logger.error(f"Failed to read SRT file: {e}")
             return []
 
         blocks = re.split(r"\n{2,}", content.strip())
 
         for block in blocks:
             lines = block.strip().split("\n")
-            timing_idx = next((i for i, l in enumerate(lines) if "-->" in l), -1)
+            timing_idx = next((i for i, line in enumerate(lines) if "-->" in line), -1)
             if timing_idx < 0:
                 continue
 
@@ -465,7 +465,7 @@ class VideoProcessor:
         return entries
 
     def _normalize_time(self, time_str: str) -> str:
-        """将 HH:MM:SS.mmm 或 MM:SS.mmm 统一转为 MM:SS 格式。"""
+        """Uniformly convert HH:MM:SS.mmm or MM:SS.mmm to MM:SS format."""
         time_str = re.sub(r"[.,]\d+$", "", time_str)
         parts = time_str.split(":")
         if len(parts) == 3:
@@ -477,7 +477,7 @@ class VideoProcessor:
         return time_str
 
     def _format_subtitle_entries(self, entries: list, language: str, chapters: list[dict[str, Any]] | None = None) -> str:
-        """将字幕条目格式化为与 Whisper 输出兼容的 Markdown，供下游管道直接使用。"""
+        """Format subtitle entries into Markdown compatible with Whisper output for direct use by downstream pipelines."""
         lines = [
             "# Video Transcription",
             "",
@@ -526,8 +526,8 @@ class VideoProcessor:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = await asyncio.to_thread(ydl.extract_info, url, False)
         except Exception as e:
-            logger.error(f"获取音频URL失败: {e}")
-            raise Exception(f"无法解析视频音频URL: {e}") from e
+            logger.error(f"Failed to get audio URL: {e}")
+            raise Exception(f"Cannot resolve video audio URL: {e}") from e
 
         selected = None
         if info.get("url") and _audio_format_score(info) >= 0:
@@ -553,10 +553,10 @@ class VideoProcessor:
                 logger.warning("Audio URL redirect resolution failed; using original yt-dlp URL: %s", e)
 
         if not selected or not selected.get("url"):
-            raise Exception("未找到可供Groq读取的直接音频URL")
+            raise Exception("No direct audio URL readable by Groq was found")
 
         logger.info(
-            "已解析直接音频URL: title=%s format=%s ext=%s",
+            "Resolved direct audio URL: title=%s format=%s ext=%s",
             info.get("title", "unknown"),
             selected.get("format_id", "unknown"),
             selected.get("ext", "unknown"),
@@ -683,24 +683,24 @@ class VideoProcessor:
 
             candidates = list(output_dir.glob(f"upload_audio_{unique_id}.*"))
             if not candidates:
-                raise Exception("未找到下载的音频文件")
+                raise Exception("Downloaded audio file not found")
 
             audio_file = str(candidates[0])
             logger.info("Audio file downloaded for Groq upload: %s", audio_file)
             return audio_file, video_title
         except Exception as e:
-            logger.error("下载音频文件失败: %s", e)
-            raise Exception(f"下载音频文件失败: {e}") from e
+            logger.error("Failed to download audio file: %s", e)
+            raise Exception(f"Failed to download audio file: {e}") from e
     
     def get_video_info(self, url: str) -> dict:
         """
-        获取视频信息
+        Get video information
         
         Args:
-            url: 视频链接
+            url: Video link
             
         Returns:
-            视频信息字典
+            Video information dictionary
         """
         try:
             with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
@@ -714,5 +714,5 @@ class VideoProcessor:
                     'view_count': info.get('view_count', 0),
                 }
         except Exception as e:
-            logger.error(f"获取视频信息失败: {str(e)}")
-            raise Exception(f"获取视频信息失败: {str(e)}")
+            logger.error(f"Failed to get video info: {str(e)}")
+            raise Exception(f"Failed to get video info: {str(e)}")

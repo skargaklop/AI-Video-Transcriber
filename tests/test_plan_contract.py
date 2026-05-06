@@ -1,6 +1,5 @@
 import asyncio
 import io
-import subprocess
 import shutil
 import sys
 import unittest
@@ -893,7 +892,7 @@ class WindowsLauncherTests(unittest.TestCase):
 
         self.assertIn("AI Video Transcriber startup check", start_script)
         self.assertIn("Development mode - hot reload enabled", start_script)
-        self.assertNotIn("开发模式", start_script)
+        self.assertNotIn("Development Mode", start_script)
 
 
     def test_process_video_accepts_uploaded_audio_without_url(self):

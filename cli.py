@@ -166,7 +166,6 @@ def _print_progress(task_id: str, task_data: dict) -> None:
         return
     progress = task_data.get("progress", 0)
     message = task_data.get("message", "")
-    stage = task_data.get("stage_code", "")
     print(f"[{progress:>3d}%] {message}", file=sys.stderr, flush=True)
 
 
@@ -406,7 +405,6 @@ async def _run_summarize(args) -> dict:
     openai_base_url = get_credential("OPENAI_BASE_URL", "openai_base_url")
     model = getattr(args, "model", "") or "gpt-4o"
     language = getattr(args, "summary_lang", "en") or "en"
-    output_format = getattr(args, "output_format", "markdown") or "markdown"
     prompt = getattr(args, "prompt", "") or ""
     reasoning_effort = getattr(args, "reasoning_effort", "") or ""
 

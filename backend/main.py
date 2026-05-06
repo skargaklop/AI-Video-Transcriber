@@ -1,12 +1,12 @@
 from fastapi import FastAPI, HTTPException, Form, File, UploadFile, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 import os
-import tempfile
 import asyncio
 import logging
 import importlib
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 import aiofiles
@@ -16,7 +16,11 @@ import re
 import openai
 
 from video_processor import VideoProcessor
-from groq_transcriber import DEFAULT_GROQ_MODEL, GroqTranscriptionError, GroqURLTranscriber
+from groq_transcriber import (
+    DEFAULT_GROQ_MODEL,
+    GroqTranscriptionError,
+    GroqURLTranscriber,
+)
 from html_export import render_summary_html
 from local_api_transcriber import LocalAPITranscriber, LocalAPITranscriptionError
 from local_transcription import (
@@ -32,7 +36,7 @@ from local_transcription import (
 )
 from summarizer import Summarizer
 from transcript_formatting import format_transcript_without_timecodes
-from settings import get_credential, get_masked_settings, load_settings, save_settings
+from settings import get_credential, get_masked_settings, save_settings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -59,35 +63,35 @@ app.mount("/static", StaticFiles(directory=str(PROJECT_ROOT / "static")), name="
 TEMP_DIR = PROJECT_ROOT / "temp"
 TEMP_DIR.mkdir(exist_ok=True)
 
-# 初始化处理器
+# Initialize handlers
 video_processor = VideoProcessor()
 summarizer = Summarizer()
 
-# 存储任务状态 - 使用文件持久化
-import json
-import threading
-
+# Store task state - using file persistence
 TASKS_FILE = TEMP_DIR / "tasks.json"
 tasks_lock = threading.Lock()
 
+
 def load_tasks():
-    """加载任务状态"""
+    """Load task state"""
     try:
         if TASKS_FILE.exists():
-            with open(TASKS_FILE, 'r', encoding='utf-8') as f:
+            with open(TASKS_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
-    except:
+    except Exception:
         pass
     return {}
 
+
 def save_tasks(tasks_data):
-    """保存任务状态"""
+    """Save task state"""
     try:
         with tasks_lock:
-            with open(TASKS_FILE, 'w', encoding='utf-8') as f:
+            with open(TASKS_FILE, "w", encoding="utf-8") as f:
                 json.dump(tasks_data, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        logger.error(f"保存任务状态失败: {e}")
+        logger.error(f"Failed to save task state: {e}")
+
 
 def _mark_incomplete_tasks_as_interrupted(tasks_data):
     """Mark persisted in-flight tasks as interrupted after app restart."""
@@ -117,51 +121,57 @@ def _mark_incomplete_tasks_as_interrupted(tasks_data):
 
 
 async def broadcast_task_update(task_id: str, task_data: dict):
-    """向所有连接的SSE客户端广播任务状态更新"""
-    logger.info(f"广播任务更新: {task_id}, 状态: {task_data.get('status')}, 连接数: {len(sse_connections.get(task_id, []))}")
+    """Broadcast task status updates to all connected SSE clients"""
+    logger.info(
+        f"Broadcasting task update: {task_id}, status: {task_data.get('status')}, connections: {len(sse_connections.get(task_id, []))}"
+    )
     if task_id in sse_connections:
         connections_to_remove = []
         for queue in sse_connections[task_id]:
             try:
                 await queue.put(json.dumps(task_data, ensure_ascii=False))
-                logger.debug(f"消息已发送到队列: {task_id}")
+                logger.debug(f"Message sent to queue: {task_id}")
             except Exception as e:
-                logger.warning(f"发送消息到队列失败: {e}")
+                logger.warning(f"Failed to send message to queue: {e}")
                 connections_to_remove.append(queue)
-        
-        # 移除断开的连接
+
+        # Remove disconnected connections
         for queue in connections_to_remove:
             sse_connections[task_id].remove(queue)
-        
-        # 如果没有连接了，清理该任务的连接列表
+
+        # If no connections remain, clean up the task's connection list
         if not sse_connections[task_id]:
             del sse_connections[task_id]
 
-# 启动时加载任务状态
+
+# Load task state at startup
 tasks = load_tasks()
 if _mark_incomplete_tasks_as_interrupted(tasks):
     save_tasks(tasks)
-# 存储正在处理的URL，防止重复处理
+# Store URLs being processed to prevent duplicates
 processing_urls = set()
-# 存储活跃的任务对象，用于控制和取消
+# Store active task objects for control and cancellation
 active_tasks = {}
 active_summary_tasks = {}
-# 存储SSE连接，用于实时推送状态更新
+# Store SSE connections for real-time status updates
 sse_connections = {}
 
+
 def _sanitize_title_for_filename(title: str) -> str:
-    """将视频标题清洗为安全的文件名片段。"""
+    """Sanitize video title to a safe filename fragment."""
     if not title:
         return "untitled"
-    # 仅保留字母数字、下划线、连字符与空格
+    # Keep only alphanumeric, underscore, hyphen, and space
     safe = re.sub(r"[^\w\-\s]", "", title)
-    # 压缩空白并转为下划线
+    # Compress whitespace and convert to underscore
     safe = re.sub(r"\s+", "_", safe).strip("._-")
-    # 最长限制，避免过长文件名问题
+    # Maximum length to avoid overly long filename issues
     return safe[:80] or "untitled"
 
 
-async def _persist_uploaded_audio_file(upload: UploadFile, output_dir: Path) -> tuple[str, str, str]:
+async def _persist_uploaded_audio_file(
+    upload: UploadFile, output_dir: Path
+) -> tuple[str, str, str]:
     """Persist an uploaded local audio file to the temp directory for background processing."""
     original_name = Path(upload.filename or "uploaded-audio").name or "uploaded-audio"
     suffix = Path(original_name).suffix or ".bin"
@@ -196,6 +206,7 @@ def _source_reference_line(url: str, source_file_name: str = "") -> str:
         return f"source: local file - {source_file_name}"
     return "source: local file"
 
+
 def _markdown_to_plain_text(markdown: str) -> str:
     text = str(markdown or "").strip()
     text = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE)
@@ -206,6 +217,7 @@ def _markdown_to_plain_text(markdown: str) -> str:
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
+
 def _extract_detected_language(transcript_text: str, fallback: str = "") -> str:
     if not transcript_text:
         return fallback or ""
@@ -215,8 +227,10 @@ def _extract_detected_language(transcript_text: str, fallback: str = "") -> str:
             return line.split(":", 1)[-1].strip()
     return fallback or ""
 
+
 def _file_name_from_path(value: str) -> str:
     return Path(value).name if value else ""
+
 
 GROQ_MEDIA_RETRIEVAL_PATTERNS = (
     "failed to retrieve media",
@@ -285,7 +299,9 @@ def _make_stage_steps(*codes: str) -> list[dict[str, str]]:
     return [{"code": code} for code in codes]
 
 
-def _compute_stage_position(stage_steps: list[dict[str, str]] | None, stage_code: str | None) -> tuple[int | None, int | None]:
+def _compute_stage_position(
+    stage_steps: list[dict[str, str]] | None, stage_code: str | None
+) -> tuple[int | None, int | None]:
     steps = stage_steps or []
     if not steps:
         return None, None
@@ -329,7 +345,9 @@ async def _push_task_update(
         if stage_code != previous_stage:
             task["stage_started_at"] = _utc_now_iso()
 
-    stage_index, stage_total = _compute_stage_position(task.get("stage_steps"), task.get("stage_code"))
+    stage_index, stage_total = _compute_stage_position(
+        task.get("stage_steps"), task.get("stage_code")
+    )
     task["stage_index"] = stage_index
     task["stage_total"] = stage_total
 
@@ -353,20 +371,22 @@ async def _run_local_transcription(
     install_constraints = backend_install_constraints(local_backend)
     dependency_stage_code = (
         install_constraints["warning_code"]
-        if (not backend_dependencies_available(local_backend) and not install_constraints["auto_install_supported"] and install_constraints["warning_code"])
+        if (
+            not backend_dependencies_available(local_backend)
+            and not install_constraints["auto_install_supported"]
+            and install_constraints["warning_code"]
+        )
         else "installing_local_backend"
     )
     stage_steps = _make_stage_steps(
-        *(
-            ["checking_subtitles"] if try_subtitles_first else ["subtitle_skipped"]
-        ),
-        *(
-            ["reading_uploaded_audio"]
-            if source_file_path
-            else ["downloading_audio"]
-        ),
+        *(["checking_subtitles"] if try_subtitles_first else ["subtitle_skipped"]),
+        *(["reading_uploaded_audio"] if source_file_path else ["downloading_audio"]),
         "preparing_audio",
-        *([] if backend_dependencies_available(local_backend) else [dependency_stage_code]),
+        *(
+            []
+            if backend_dependencies_available(local_backend)
+            else [dependency_stage_code]
+        ),
         "loading_local_model",
         "transcribing_local_audio",
         "saving_transcript",
@@ -383,14 +403,18 @@ async def _run_local_transcription(
         ),
         stage_flow=stage_flow,
         stage_steps=stage_steps,
-        stage_code="reading_uploaded_audio" if source_file_path else "downloading_audio",
+        stage_code="reading_uploaded_audio"
+        if source_file_path
+        else "downloading_audio",
     )
 
     if source_file_path:
         audio_path = source_file_path
         video_title = source_title or Path(source_file_path).stem or "uploaded-audio"
     else:
-        audio_path, video_title = await video_processor.download_and_convert(url, TEMP_DIR)
+        audio_path, video_title = await video_processor.download_and_convert(
+            url, TEMP_DIR
+        )
     backend_audio_path = audio_path
     try:
         await _push_task_update(
@@ -399,7 +423,9 @@ async def _run_local_transcription(
             message=f"Preparing audio for local {local_backend} transcription...",
             stage_code="preparing_audio",
         )
-        backend_audio_path = ensure_backend_audio_file(audio_path, local_backend, TEMP_DIR)
+        backend_audio_path = ensure_backend_audio_file(
+            audio_path, local_backend, TEMP_DIR
+        )
         resolved_model_id = resolve_local_model_id(
             local_backend,
             local_model_preset,
@@ -444,7 +470,9 @@ async def _run_local_transcription(
             stage_code="transcribing_local_audio",
         )
 
-        result = await transcriber.transcribe(backend_audio_path, language=local_language.strip())
+        result = await transcriber.transcribe(
+            backend_audio_path, language=local_language.strip()
+        )
         await _push_task_update(
             task_id,
             progress=92,
@@ -462,16 +490,24 @@ async def _run_local_transcription(
                 try:
                     Path(candidate).unlink(missing_ok=True)
                 except Exception:
-                    logger.debug("Could not remove temporary local transcription file: %s", candidate)
+                    logger.debug(
+                        "Could not remove temporary local transcription file: %s",
+                        candidate,
+                    )
+
 
 @app.get("/")
 async def read_root():
-    """返回前端页面"""
+    """Return frontend page"""
     return FileResponse(str(PROJECT_ROOT / "static" / "index.html"))
+
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
-    return FileResponse(str(PROJECT_ROOT / "static" / "favicon.svg"), media_type="image/svg+xml")
+    return FileResponse(
+        str(PROJECT_ROOT / "static" / "favicon.svg"), media_type="image/svg+xml"
+    )
+
 
 @app.get("/api/settings")
 async def read_settings():
@@ -493,7 +529,7 @@ async def update_settings(request: Request):
 @app.post("/api/models")
 async def list_models(
     base_url: str = Form(default=""),
-    api_key:  str = Form(default=""),
+    api_key: str = Form(default=""),
 ):
     """Proxy: fetch model list from any OpenAI-compatible API."""
     effective_key = api_key or os.getenv("OPENAI_API_KEY", "")
@@ -504,7 +540,7 @@ async def list_models(
 
     try:
         client = openai.OpenAI(api_key=effective_key, base_url=effective_url)
-        resp   = await asyncio.to_thread(client.models.list)
+        resp = await asyncio.to_thread(client.models.list)
         models = [{"id": m.id, "name": getattr(m, "name", m.id)} for m in resp.data]
         # Sort by id for readability
         models.sort(key=lambda x: x["id"])
@@ -523,9 +559,9 @@ async def process_video(
     url: str = Form(default=""),
     audio_file: UploadFile | None = File(default=None),
     summary_language: str = Form(default="zh"),
-    api_key:       str = Form(default=""),
+    api_key: str = Form(default=""),
     model_base_url: str = Form(default=""),
-    model_id:      str = Form(default=""),
+    model_id: str = Form(default=""),
     groq_api_key: str = Form(default=""),
     groq_model: str = Form(default=DEFAULT_GROQ_MODEL),
     groq_language: str = Form(default=""),
@@ -545,45 +581,64 @@ async def process_video(
     local_api_prompt: str = Form(default=""),
 ):
     """
-    处理视频链接，返回转录任务ID。摘要在单独端点中由用户确认后生成。
+    Process video URL, return transcription task ID. Summary is generated at a separate endpoint upon user confirmation.
     """
     source_file_path = ""
     try:
-        _ = (summary_language, api_key, model_base_url, model_id)  # accepted for older clients
+        _ = (
+            summary_language,
+            api_key,
+            model_base_url,
+            model_id,
+        )  # accepted for older clients
         # Credential fallback: form data → settings.json → env vars
         if not groq_api_key.strip():
             groq_api_key = get_credential("GROQ_API_KEY", "groq_api_key")
         normalized_url = (url or "").strip()
-        using_uploaded_file = audio_file is not None and bool(getattr(audio_file, "filename", "") or "")
+        using_uploaded_file = audio_file is not None and bool(
+            getattr(audio_file, "filename", "") or ""
+        )
         if not normalized_url and not using_uploaded_file:
-            raise HTTPException(status_code=400, detail="Either a video URL or a local audio file is required.")
+            raise HTTPException(
+                status_code=400,
+                detail="Either a video URL or a local audio file is required.",
+            )
 
         source_file_name = ""
         source_title = ""
         input_source_type = "url"
         if using_uploaded_file:
-            source_file_path, source_file_name, source_title = await _persist_uploaded_audio_file(audio_file, TEMP_DIR)
+            (
+                source_file_path,
+                source_file_name,
+                source_title,
+            ) = await _persist_uploaded_audio_file(audio_file, TEMP_DIR)
             input_source_type = "file"
 
-        # 检查是否已经在处理相同的URL
+        # Check if already processing the same URL
         if normalized_url and normalized_url in processing_urls:
-            # 查找现有任务
+            # Find existing task
             for tid, task in tasks.items():
                 if task.get("url") == normalized_url:
-                    return {"task_id": tid, "message": "该视频正在处理中，请等待..."}
-            
-        # 生成唯一任务ID
+                    return {
+                        "task_id": tid,
+                        "message": "This video is already being processed, please wait...",
+                    }
+
+        # Generate unique task ID
         task_id = str(uuid.uuid4())
-        
-        # 标记URL为正在处理
+
+        # Mark URL as processing
         if normalized_url:
             processing_urls.add(normalized_url)
-        
-        # 初始化任务状态
+
+        # Initialize task state
         tasks[task_id] = {
             "status": "processing",
             "progress": 0,
-            "message": "Starting audio processing..." if using_uploaded_file else "开始处理视频...",
+            "message": "Starting audio processing..."
+            if using_uploaded_file
+            else "Starting video processing...",
             "stage_flow": None,
             "stage_steps": [],
             "stage_code": None,
@@ -594,7 +649,9 @@ async def process_video(
             "transcript": None,
             "transcript_source": None,
             "transcription_source": None,
-            "transcription_provider_requested": (transcription_provider or "groq").strip().lower(),
+            "transcription_provider_requested": (transcription_provider or "groq")
+            .strip()
+            .lower(),
             "transcription_provider_used": None,
             "local_backend_used": None,
             "local_model_used": None,
@@ -608,13 +665,13 @@ async def process_video(
             "summary_html_path": None,
             "summary_text_path": None,
             "error": None,
-            "url": normalized_url,  # 保存URL用于去重
+            "url": normalized_url,  # Save URL for deduplication
             "input_source_type": input_source_type,
             "source_file_name": source_file_name,
         }
         save_tasks(tasks)
-        
-        # 创建并跟踪异步任务
+
+        # Create and track async task
         task = asyncio.create_task(
             process_video_task(
                 task_id=task_id,
@@ -642,9 +699,9 @@ async def process_video(
             )
         )
         active_tasks[task_id] = task
-        
-        return {"task_id": task_id, "message": "任务已创建，正在处理中..."}
-        
+
+        return {"task_id": task_id, "message": "Task created, processing..."}
+
     except HTTPException:
         if source_file_path:
             Path(source_file_path).unlink(missing_ok=True)
@@ -652,8 +709,9 @@ async def process_video(
     except Exception as e:
         if source_file_path:
             Path(source_file_path).unlink(missing_ok=True)
-        logger.error(f"处理视频时出错: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"处理失败: {str(e)}")
+        logger.error(f"Error processing video: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
+
 
 async def process_video_task(
     task_id: str,
@@ -684,12 +742,20 @@ async def process_video_task(
     try:
         requested_provider = (transcription_provider or "groq").strip().lower()
         if requested_provider not in {"groq", "local", "local_api"}:
-            raise Exception(f"Unsupported transcription provider: {transcription_provider}")
+            raise Exception(
+                f"Unsupported transcription provider: {transcription_provider}"
+            )
         using_uploaded_file = bool(source_file_path)
-        display_source_name = source_file_name or (Path(source_file_path).name if source_file_path else "")
-        display_source_title = source_title or (Path(source_file_path).stem if source_file_path else "")
+        display_source_name = source_file_name or (
+            Path(source_file_path).name if source_file_path else ""
+        )
+        display_source_title = source_title or (
+            Path(source_file_path).stem if source_file_path else ""
+        )
 
-        normalized_local_backend = (local_backend or DEFAULT_LOCAL_BACKEND).strip().lower()
+        normalized_local_backend = (
+            (local_backend or DEFAULT_LOCAL_BACKEND).strip().lower()
+        )
         if normalized_local_backend not in {"whisper", "parakeet"}:
             raise Exception(f"Unsupported local backend: {local_backend}")
 
@@ -698,10 +764,20 @@ async def process_video_task(
             should_try_subtitles = (not skip_subtitles) and not using_uploaded_file
 
         normalized_local_language = (local_language or "").strip()
-        if normalized_local_language.lower() in {"auto", "auto-detect", "autodetect", "detect"}:
+        if normalized_local_language.lower() in {
+            "auto",
+            "auto-detect",
+            "autodetect",
+            "detect",
+        }:
             normalized_local_language = ""
         normalized_local_api_language = (local_api_language or "").strip()
-        if normalized_local_api_language.lower() in {"auto", "auto-detect", "autodetect", "detect"}:
+        if normalized_local_api_language.lower() in {
+            "auto",
+            "auto-detect",
+            "autodetect",
+            "detect",
+        }:
             normalized_local_api_language = ""
 
         local_resolved_model_id = resolve_local_model_id(
@@ -712,11 +788,7 @@ async def process_video_task(
 
         initial_stage_flow = requested_provider
         initial_stage_steps = _make_stage_steps(
-            *(
-                ["checking_subtitles"]
-                if should_try_subtitles
-                else ["subtitle_skipped"]
-            ),
+            *(["checking_subtitles"] if should_try_subtitles else ["subtitle_skipped"]),
             "saving_transcript",
             "completed",
         )
@@ -785,19 +857,25 @@ async def process_video_task(
             stage_code=(
                 "checking_subtitles"
                 if should_try_subtitles
-                else ("reading_uploaded_audio" if using_uploaded_file else "subtitle_skipped")
+                else (
+                    "reading_uploaded_audio"
+                    if using_uploaded_file
+                    else "subtitle_skipped"
+                )
             ),
         )
-        tasks[task_id].update({
-            "transcription_provider_requested": requested_provider,
-            "transcription_provider_used": None,
-            "local_backend_used": None,
-            "local_model_used": None,
-            "used_local_fallback": False,
-            "warnings": [],
-            "input_source_type": "file" if using_uploaded_file else "url",
-            "source_file_name": display_source_name,
-        })
+        tasks[task_id].update(
+            {
+                "transcription_provider_requested": requested_provider,
+                "transcription_provider_used": None,
+                "local_backend_used": None,
+                "local_model_used": None,
+                "used_local_fallback": False,
+                "warnings": [],
+                "input_source_type": "file" if using_uploaded_file else "url",
+                "source_file_name": display_source_name,
+            }
+        )
         save_tasks(tasks)
         await asyncio.sleep(0.1)
 
@@ -841,7 +919,9 @@ async def process_video_task(
                 progress=70,
                 message=f"Subtitles found ({detected_language or 'unknown'}); saving transcript...",
                 stage_flow="subtitles",
-                stage_steps=_make_stage_steps("checking_subtitles", "saving_transcript", "completed"),
+                stage_steps=_make_stage_steps(
+                    "checking_subtitles", "saving_transcript", "completed"
+                ),
                 stage_code="saving_transcript",
             )
         elif requested_provider == "local":
@@ -859,17 +939,25 @@ async def process_video_task(
             )
             video_title = local_result["video_title"]
             raw_script = local_result["markdown"]
-            detected_language = local_result.get("language") or _extract_detected_language(raw_script, normalized_local_language)
+            detected_language = local_result.get(
+                "language"
+            ) or _extract_detected_language(raw_script, normalized_local_language)
             transcript_source = "local_audio_file"
             transcription_provider_used = "local"
             warnings = list(local_result.get("warnings") or [])
             local_backend_used = normalized_local_backend
-            local_model_used = local_result.get("resolved_model_id") or local_resolved_model_id
+            local_model_used = (
+                local_result.get("resolved_model_id") or local_resolved_model_id
+            )
         elif requested_provider == "local_api":
             if not local_api_base_url.strip():
-                raise Exception("Local API base URL is required when provider is local_api.")
+                raise Exception(
+                    "Local API base URL is required when provider is local_api."
+                )
             if not local_api_model.strip():
-                raise Exception("Local API model is required when provider is local_api.")
+                raise Exception(
+                    "Local API model is required when provider is local_api."
+                )
 
             await _push_task_update(
                 task_id,
@@ -881,13 +969,23 @@ async def process_video_task(
                 ),
                 stage_flow="local_api",
                 stage_steps=_make_stage_steps(
-                    *(["checking_subtitles"] if should_try_subtitles else ["subtitle_skipped"]),
-                    *(["reading_uploaded_audio"] if using_uploaded_file else ["downloading_audio"]),
+                    *(
+                        ["checking_subtitles"]
+                        if should_try_subtitles
+                        else ["subtitle_skipped"]
+                    ),
+                    *(
+                        ["reading_uploaded_audio"]
+                        if using_uploaded_file
+                        else ["downloading_audio"]
+                    ),
                     "sending_local_api_audio",
                     "saving_transcript",
                     "completed",
                 ),
-                stage_code="reading_uploaded_audio" if using_uploaded_file else "downloading_audio",
+                stage_code="reading_uploaded_audio"
+                if using_uploaded_file
+                else "downloading_audio",
             )
 
             audio_file = ""
@@ -896,7 +994,10 @@ async def process_video_task(
                     audio_file = source_file_path
                     video_title = display_source_title or "uploaded-audio"
                 else:
-                    audio_file, video_title = await video_processor.download_and_convert(url, TEMP_DIR)
+                    (
+                        audio_file,
+                        video_title,
+                    ) = await video_processor.download_and_convert(url, TEMP_DIR)
                 await _push_task_update(
                     task_id,
                     progress=68,
@@ -921,16 +1022,23 @@ async def process_video_task(
                     try:
                         Path(audio_file).unlink(missing_ok=True)
                     except Exception:
-                        logger.debug("Could not remove temporary local API transcription file: %s", audio_file)
+                        logger.debug(
+                            "Could not remove temporary local API transcription file: %s",
+                            audio_file,
+                        )
 
             raw_script = local_api_result["markdown"]
-            detected_language = local_api_result.get("language") or _extract_detected_language(raw_script, normalized_local_api_language)
+            detected_language = local_api_result.get(
+                "language"
+            ) or _extract_detected_language(raw_script, normalized_local_api_language)
             transcript_source = "local_api_audio_file"
             transcription_provider_used = "local_api"
             local_model_used = local_api_model.strip()
         else:
             if not groq_api_key.strip():
-                raise Exception("Groq API key is required when provider is Groq and subtitles are unavailable.")
+                raise Exception(
+                    "Groq API key is required when provider is Groq and subtitles are unavailable."
+                )
 
             groq = GroqURLTranscriber(api_key=groq_api_key, model=groq_model)
             groq_result = None
@@ -973,7 +1081,11 @@ async def process_video_task(
                         message="No subtitles found; resolving audio URL for Groq...",
                         stage_flow="groq",
                         stage_steps=_make_stage_steps(
-                            *(["checking_subtitles"] if should_try_subtitles else ["subtitle_skipped"]),
+                            *(
+                                ["checking_subtitles"]
+                                if should_try_subtitles
+                                else ["subtitle_skipped"]
+                            ),
                             "resolving_groq_audio_url",
                             "transcribing_groq_audio",
                             "saving_transcript",
@@ -1012,7 +1124,10 @@ async def process_video_task(
                             if _is_groq_media_retrieval_error(e):
                                 last_media_error = e
                                 if attempt == 0:
-                                    logger.warning("Groq could not read audio URL, refreshing and retrying: %s", e)
+                                    logger.warning(
+                                        "Groq could not read audio URL, refreshing and retrying: %s",
+                                        e,
+                                    )
                                     continue
                                 break
                             raise
@@ -1026,7 +1141,11 @@ async def process_video_task(
                                 message="Groq could not fetch the media URL; downloading audio locally for file upload...",
                                 stage_flow="groq_file_fallback",
                                 stage_steps=_make_stage_steps(
-                                    *(["checking_subtitles"] if should_try_subtitles else ["subtitle_skipped"]),
+                                    *(
+                                        ["checking_subtitles"]
+                                        if should_try_subtitles
+                                        else ["subtitle_skipped"]
+                                    ),
                                     "resolving_groq_audio_url",
                                     "retrying_groq_audio_url",
                                     "downloading_groq_fallback_audio",
@@ -1038,10 +1157,16 @@ async def process_video_task(
                             )
 
                             if hasattr(video_processor, "download_audio_for_upload"):
-                                download_for_upload = video_processor.download_audio_for_upload
+                                download_for_upload = (
+                                    video_processor.download_audio_for_upload
+                                )
                             else:
-                                download_for_upload = video_processor.download_and_convert
-                            audio_file, downloaded_title = await download_for_upload(url, TEMP_DIR)
+                                download_for_upload = (
+                                    video_processor.download_and_convert
+                                )
+                            audio_file, downloaded_title = await download_for_upload(
+                                url, TEMP_DIR
+                            )
                             video_title = downloaded_title or video_title
 
                             await _push_task_update(
@@ -1070,17 +1195,25 @@ async def process_video_task(
                                 try:
                                     Path(audio_file).unlink(missing_ok=True)
                                 except Exception:
-                                    logger.debug("Could not remove temporary audio file: %s", audio_file)
+                                    logger.debug(
+                                        "Could not remove temporary audio file: %s",
+                                        audio_file,
+                                    )
 
                 if groq_result is None:
                     raise GroqTranscriptionError(
                         _format_groq_transcription_error(
-                            last_media_error or GroqTranscriptionError("Unknown Groq transcription error"),
+                            last_media_error
+                            or GroqTranscriptionError(
+                                "Unknown Groq transcription error"
+                            ),
                             retried=bool(last_media_error),
                         )
                     )
             except GroqTranscriptionError as groq_error:
-                if use_local_fallback and _is_groq_error_eligible_for_local_fallback(groq_error):
+                if use_local_fallback and _is_groq_error_eligible_for_local_fallback(
+                    groq_error
+                ):
                     groq_failure_for_local_fallback = groq_error
                 else:
                     raise
@@ -1090,16 +1223,26 @@ async def process_video_task(
                     task_id,
                     progress=78,
                     message=f"Groq failed; falling back to local {normalized_local_backend} transcription...",
-                    stage_flow="groq_local_file_fallback" if using_uploaded_file else "groq_local_fallback",
+                    stage_flow="groq_local_file_fallback"
+                    if using_uploaded_file
+                    else "groq_local_fallback",
                     stage_steps=_make_stage_steps(
-                        *(["checking_subtitles"] if should_try_subtitles else ["subtitle_skipped"]),
+                        *(
+                            ["checking_subtitles"]
+                            if should_try_subtitles
+                            else ["subtitle_skipped"]
+                        ),
                         *(
                             ["reading_uploaded_audio", "uploading_groq_audio"]
                             if using_uploaded_file
                             else ["resolving_groq_audio_url", "retrying_groq_audio_url"]
                         ),
                         "switching_to_local_fallback",
-                        *(["reading_uploaded_audio"] if using_uploaded_file else ["downloading_audio"]),
+                        *(
+                            ["reading_uploaded_audio"]
+                            if using_uploaded_file
+                            else ["downloading_audio"]
+                        ),
                         "preparing_audio",
                         "loading_local_model",
                         "transcribing_local_audio",
@@ -1116,23 +1259,31 @@ async def process_video_task(
                     local_model_preset=local_model_preset,
                     local_model_id=local_model_id,
                     local_language=normalized_local_language,
-                    stage_flow="groq_local_file_fallback" if using_uploaded_file else "groq_local_fallback",
+                    stage_flow="groq_local_file_fallback"
+                    if using_uploaded_file
+                    else "groq_local_fallback",
                     try_subtitles_first=should_try_subtitles,
                     source_file_path=source_file_path,
                     source_title=display_source_title,
                 )
                 video_title = local_result["video_title"]
                 raw_script = local_result["markdown"]
-                detected_language = local_result.get("language") or _extract_detected_language(raw_script, normalized_local_language)
+                detected_language = local_result.get(
+                    "language"
+                ) or _extract_detected_language(raw_script, normalized_local_language)
                 transcript_source = "local_audio_file"
                 transcription_provider_used = "local"
                 warnings = list(local_result.get("warnings") or [])
                 local_backend_used = normalized_local_backend
-                local_model_used = local_result.get("resolved_model_id") or local_resolved_model_id
+                local_model_used = (
+                    local_result.get("resolved_model_id") or local_resolved_model_id
+                )
                 used_local_fallback_flag = True
             else:
                 raw_script = groq_result["markdown"]
-                detected_language = groq_result.get("language") or _extract_detected_language(raw_script, groq_language)
+                detected_language = groq_result.get(
+                    "language"
+                ) or _extract_detected_language(raw_script, groq_language)
                 transcription_provider_used = "groq"
 
         if not include_timecodes:
@@ -1214,14 +1365,18 @@ async def process_video_task(
             "local_model_used": local_model_used,
             "used_local_fallback": used_local_fallback_flag,
             "warnings": warnings,
-            "groq_model": groq_model if transcript_source in {"groq_audio_url", "groq_audio_file"} else None,
+            "groq_model": groq_model
+            if transcript_source in {"groq_audio_url", "groq_audio_file"}
+            else None,
             "url": url,
             "source_file_name": display_source_name,
             "input_source_type": "file" if using_uploaded_file else "url",
         }
-        task_result["stage_index"], task_result["stage_total"] = _compute_stage_position(
-            task_result["stage_steps"],
-            task_result["stage_code"],
+        task_result["stage_index"], task_result["stage_total"] = (
+            _compute_stage_position(
+                task_result["stage_steps"],
+                task_result["stage_code"],
+            )
         )
 
         tasks[task_id].update(task_result)
@@ -1264,6 +1419,7 @@ async def process_video_task(
             stage_code="error",
         )
 
+
 @app.post("/api/summarize-transcript")
 async def summarize_transcript(
     task_id: str = Form(...),
@@ -1279,24 +1435,46 @@ async def summarize_transcript(
     Start a summary job only after the user confirms sending the transcript.
     """
     if task_id not in tasks:
-        raise HTTPException(status_code=404, detail="任务不存在")
+        raise HTTPException(status_code=404, detail="Task not found")
 
     task_data = tasks[task_id]
     transcript = task_data.get("transcript") or task_data.get("script")
     if not transcript:
-        raise HTTPException(status_code=400, detail="该任务还没有可摘要的转录文本")
+        raise HTTPException(
+            status_code=400,
+            detail="This task does not have a transcript available for summarization",
+        )
 
     normalized_format = (output_format or "markdown").strip().lower()
     if normalized_format not in {"markdown", "html", "txt", "both"}:
-        raise HTTPException(status_code=400, detail="output_format must be markdown, html, txt, or both")
+        raise HTTPException(
+            status_code=400, detail="output_format must be markdown, html, txt, or both"
+        )
 
-    normalized_summary_prompt = summary_prompt.strip() if isinstance(summary_prompt, str) else ""
+    normalized_summary_prompt = (
+        summary_prompt.strip() if isinstance(summary_prompt, str) else ""
+    )
     if len(normalized_summary_prompt) > 4000:
-        raise HTTPException(status_code=400, detail="summary_prompt must be 4000 characters or less")
+        raise HTTPException(
+            status_code=400, detail="summary_prompt must be 4000 characters or less"
+        )
 
-    normalized_reasoning_effort = reasoning_effort.strip().lower() if isinstance(reasoning_effort, str) else ""
-    if normalized_reasoning_effort not in {"", "none", "minimal", "low", "medium", "high", "xhigh"}:
-        raise HTTPException(status_code=400, detail="reasoning_effort must be none, minimal, low, medium, high, or xhigh")
+    normalized_reasoning_effort = (
+        reasoning_effort.strip().lower() if isinstance(reasoning_effort, str) else ""
+    )
+    if normalized_reasoning_effort not in {
+        "",
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+    }:
+        raise HTTPException(
+            status_code=400,
+            detail="reasoning_effort must be none, minimal, low, medium, high, or xhigh",
+        )
 
     if not api_key.strip():
         api_key = get_credential("OPENAI_API_KEY", "openai_api_key")
@@ -1304,11 +1482,13 @@ async def summarize_transcript(
         model_base_url = get_credential("OPENAI_BASE_URL", "openai_base_url")
 
     if not api_key.strip() and not summarizer.is_available():
-        tasks[task_id].update({
-            "summary_status": "idle",
-            "summary_error": "Summary provider API key is required.",
-            "message": "Summary provider API key is required. Configure summary provider settings and try again.",
-        })
+        tasks[task_id].update(
+            {
+                "summary_status": "idle",
+                "summary_error": "Summary provider API key is required.",
+                "message": "Summary provider API key is required. Configure summary provider settings and try again.",
+            }
+        )
         save_tasks(tasks)
         await broadcast_task_update(task_id, tasks[task_id])
         raise HTTPException(
@@ -1319,17 +1499,19 @@ async def summarize_transcript(
     if task_id in active_summary_tasks and not active_summary_tasks[task_id].done():
         return tasks[task_id]
 
-    tasks[task_id].update({
-        "summary_status": "processing",
-        "summary_progress": 5,
-        "summary_error": None,
-        "message": "Generating summary...",
-        "summary_language": summary_language,
-        "summary_model": model_id or None,
-        "summary_output_format": normalized_format,
-        "summary_prompt": normalized_summary_prompt,
-        "summary_reasoning_effort": normalized_reasoning_effort or None,
-    })
+    tasks[task_id].update(
+        {
+            "summary_status": "processing",
+            "summary_progress": 5,
+            "summary_error": None,
+            "message": "Generating summary...",
+            "summary_language": summary_language,
+            "summary_model": model_id or None,
+            "summary_output_format": normalized_format,
+            "summary_prompt": normalized_summary_prompt,
+            "summary_reasoning_effort": normalized_reasoning_effort or None,
+        }
+    )
     save_tasks(tasks)
     await broadcast_task_update(task_id, tasks[task_id])
 
@@ -1349,6 +1531,7 @@ async def summarize_transcript(
 
     return tasks[task_id]
 
+
 async def summarize_transcript_task(
     task_id: str,
     summary_language: str,
@@ -1364,11 +1547,13 @@ async def summarize_transcript_task(
         transcript = task_data.get("transcript") or task_data.get("script")
         video_title = task_data.get("video_title") or "Video Summary"
 
-        tasks[task_id].update({
-            "summary_status": "processing",
-            "summary_progress": 25,
-            "message": "Sending transcript to summary provider...",
-        })
+        tasks[task_id].update(
+            {
+                "summary_status": "processing",
+                "summary_progress": 25,
+                "message": "Sending transcript to summary provider...",
+            }
+        )
         save_tasks(tasks)
         await broadcast_task_update(task_id, tasks[task_id])
 
@@ -1380,7 +1565,9 @@ async def summarize_transcript_task(
                 model=model_id or None,
                 reasoning_effort=reasoning_effort or None,
             )
-            logger.info(f"дЅїз”Ёе‰Ќз«ЇжЏђдѕ›зљ„ж‘и¦ЃAPIпјЊbase_url={effective_url}, model={model_id or 'default'}")
+            logger.info(
+                f"дЅїз”Ёе‰Ќз«ЇжЏђдѕ›зљ„ж‘и¦ЃAPIпјЊbase_url={effective_url}, model={model_id or 'default'}"
+            )
         else:
             request_summarizer = summarizer
 
@@ -1390,17 +1577,23 @@ async def summarize_transcript_task(
             video_title,
             custom_prompt=summary_prompt,
         )
-        summary_with_source = summary.rstrip() + f"\n\nsource: {task_data.get('url', '')}\n"
+        summary_with_source = (
+            summary.rstrip() + f"\n\nsource: {task_data.get('url', '')}\n"
+        )
 
-        tasks[task_id].update({
-            "summary_progress": 80,
-            "message": "Saving summary files...",
-        })
+        tasks[task_id].update(
+            {
+                "summary_progress": 80,
+                "message": "Saving summary files...",
+            }
+        )
         save_tasks(tasks)
         await broadcast_task_update(task_id, tasks[task_id])
 
         short_id = task_data.get("short_id") or task_id.replace("-", "")[:6]
-        safe_title = task_data.get("safe_title") or _sanitize_title_for_filename(video_title)
+        safe_title = task_data.get("safe_title") or _sanitize_title_for_filename(
+            video_title
+        )
 
         summary_markdown_path = None
         summary_html_path = None
@@ -1429,30 +1622,42 @@ async def summarize_transcript_task(
             async with aiofiles.open(summary_html_path, "w", encoding="utf-8") as f:
                 await f.write(html_content)
 
-        tasks[task_id].update({
-            "summary": summary_with_source,
-            "summary_status": "completed",
-            "summary_progress": 100,
-            "summary_language": summary_language,
-            "summary_model": model_id or None,
-            "summary_reasoning_effort": reasoning_effort or None,
-            "summary_output_format": output_format,
-            "summary_path": str(summary_markdown_path or summary_text_path) if (summary_markdown_path or summary_text_path) else None,
-            "summary_markdown_path": str(summary_markdown_path) if summary_markdown_path else None,
-            "summary_html_path": str(summary_html_path) if summary_html_path else None,
-            "summary_text_path": str(summary_text_path) if summary_text_path else None,
-            "message": "Files ready.",
-        })
+        tasks[task_id].update(
+            {
+                "summary": summary_with_source,
+                "summary_status": "completed",
+                "summary_progress": 100,
+                "summary_language": summary_language,
+                "summary_model": model_id or None,
+                "summary_reasoning_effort": reasoning_effort or None,
+                "summary_output_format": output_format,
+                "summary_path": str(summary_markdown_path or summary_text_path)
+                if (summary_markdown_path or summary_text_path)
+                else None,
+                "summary_markdown_path": str(summary_markdown_path)
+                if summary_markdown_path
+                else None,
+                "summary_html_path": str(summary_html_path)
+                if summary_html_path
+                else None,
+                "summary_text_path": str(summary_text_path)
+                if summary_text_path
+                else None,
+                "message": "Files ready.",
+            }
+        )
         save_tasks(tasks)
         await broadcast_task_update(task_id, tasks[task_id])
 
     except Exception as e:
         logger.error(f"ж‘и¦Ѓз”џж€ђе¤±иґҐ: {e}")
-        tasks[task_id].update({
-            "summary_status": "error",
-            "summary_error": str(e),
-            "message": f"ж‘и¦Ѓз”џж€ђе¤±иґҐ: {e}",
-        })
+        tasks[task_id].update(
+            {
+                "summary_status": "error",
+                "summary_error": str(e),
+                "message": f"ж‘и¦Ѓз”џж€ђе¤±иґҐ: {e}",
+            }
+        )
         save_tasks(tasks)
         await broadcast_task_update(task_id, tasks[task_id])
     finally:
@@ -1462,43 +1667,44 @@ async def summarize_transcript_task(
 @app.get("/api/task-status/{task_id}")
 async def get_task_status(task_id: str):
     """
-    获取任务状态
+    Get task status
     """
     if task_id not in tasks:
-        raise HTTPException(status_code=404, detail="任务不存在")
-    
+        raise HTTPException(status_code=404, detail="Task not found")
+
     return tasks[task_id]
+
 
 @app.get("/api/task-stream/{task_id}")
 async def task_stream(task_id: str):
     """
-    SSE实时任务状态流
+    SSE real-time task status stream
     """
     if task_id not in tasks:
-        raise HTTPException(status_code=404, detail="任务不存在")
-    
+        raise HTTPException(status_code=404, detail="Task not found")
+
     async def event_generator():
-        # 创建任务专用的队列
+        # Create task-specific queue
         queue = asyncio.Queue()
-        
-        # 将队列添加到连接列表
+
+        # Add queue to connection list
         if task_id not in sse_connections:
             sse_connections[task_id] = []
         sse_connections[task_id].append(queue)
-        
+
         try:
-            # 立即发送当前状态
+            # Send current state immediately
             current_task = tasks.get(task_id, {})
             yield f"data: {json.dumps(current_task, ensure_ascii=False)}\n\n"
-            
-            # 持续监听状态更新
+
+            # Continuously monitor status updates
             while True:
                 try:
-                    # 等待状态更新，超时时间30秒发送心跳
+                    # Wait for status updates, send heartbeat every 30 seconds timeout
                     data = await asyncio.wait_for(queue.get(), timeout=30.0)
                     yield f"data: {data}\n\n"
-                    
-                    # 如果任务完成或失败，结束流
+
+                    # If task completes or fails, end stream
                     task_data = json.loads(data)
                     summary_status = task_data.get("summary_status")
                     if task_data.get("status") == "error":
@@ -1509,22 +1715,22 @@ async def task_stream(task_id: str):
                         break
                     if task_data.get("status") == "completed":
                         break
-                        
+
                 except asyncio.TimeoutError:
-                    # 发送心跳保持连接
+                    # Send heartbeat to keep connection alive
                     yield f"data: {json.dumps({'type': 'heartbeat'}, ensure_ascii=False)}\n\n"
-                    
+
         except asyncio.CancelledError:
-            logger.info(f"SSE连接被取消: {task_id}")
+            logger.info(f"SSE connection cancelled for task {task_id}")
         except Exception as e:
-            logger.error(f"SSE流异常: {e}")
+            logger.error(f"SSE stream exception: {e}")
         finally:
-            # 清理连接
+            # Clean up connections
             if task_id in sse_connections and queue in sse_connections[task_id]:
                 sse_connections[task_id].remove(queue)
                 if not sse_connections[task_id]:
                     del sse_connections[task_id]
-    
+
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
@@ -1533,28 +1739,32 @@ async def task_stream(task_id: str):
             "Connection": "keep-alive",
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET",
-            "Access-Control-Allow-Headers": "Cache-Control"
-        }
+            "Access-Control-Allow-Headers": "Cache-Control",
+        },
     )
+
 
 @app.get("/api/download/{filename}")
 async def download_file(filename: str):
     """
-    直接从temp目录下载文件（简化方案）
+    Download file directly from temp directory (simplified approach)
     """
     try:
-        # 检查文件扩展名安全性
+        # Check file extension safety
         suffix = Path(filename).suffix.lower()
-        if suffix not in {'.md', '.html', '.txt'}:
-            raise HTTPException(status_code=400, detail="仅支持下载.md、.html和.txt文件")
-        
-        # 检查文件名格式（防止路径遍历攻击）
-        if '..' in filename or '/' in filename or '\\' in filename:
-            raise HTTPException(status_code=400, detail="文件名格式无效")
-            
+        if suffix not in {".md", ".html", ".txt"}:
+            raise HTTPException(
+                status_code=400,
+                detail="Only .md, .html, and .txt files are supported for download",
+            )
+
+        # Check filename format (prevent directory traversal attacks)
+        if ".." in filename or "/" in filename or "\\" in filename:
+            raise HTTPException(status_code=400, detail="Invalid filename format")
+
         file_path = TEMP_DIR / filename
         if not file_path.exists():
-            raise HTTPException(status_code=404, detail="文件不存在")
+            raise HTTPException(status_code=404, detail="File not found")
 
         if suffix == ".html":
             media_type = "text/html"
@@ -1562,33 +1772,29 @@ async def download_file(filename: str):
             media_type = "text/plain; charset=utf-8"
         else:
             media_type = "text/markdown"
-            
-        return FileResponse(
-            file_path,
-            filename=filename,
-            media_type=media_type
-        )
+
+        return FileResponse(file_path, filename=filename, media_type=media_type)
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"下载文件失败: {e}")
-        raise HTTPException(status_code=500, detail=f"下载失败: {str(e)}")
+        logger.error(f"Failed to download file: {e}")
+        raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
 
 
 @app.delete("/api/task/{task_id}")
 async def delete_task(task_id: str):
     """
-    取消并删除任务
+    Cancel and delete task
     """
     if task_id not in tasks:
-        raise HTTPException(status_code=404, detail="任务不存在")
-    
-    # 如果任务还在运行，先取消它
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    # If task is still running, cancel it first
     if task_id in active_tasks:
         task = active_tasks[task_id]
         if not task.done():
             task.cancel()
-            logger.info(f"任务 {task_id} 已被取消")
+            logger.info(f"Task {task_id} has been cancelled")
         del active_tasks[task_id]
 
     if task_id in active_summary_tasks:
@@ -1597,21 +1803,22 @@ async def delete_task(task_id: str):
             summary_task.cancel()
             logger.info(f"summary task {task_id} cancelled")
         del active_summary_tasks[task_id]
-    
-    # 从处理URL列表中移除
+
+    # Remove from processing URLs list
     task_url = tasks[task_id].get("url")
     if task_url:
         processing_urls.discard(task_url)
-    
-    # 删除任务记录
+
+    # Delete task record
     del tasks[task_id]
     save_tasks(tasks)
-    return {"message": "任务已取消并删除"}
+    return {"message": "Task cancelled and deleted"}
+
 
 @app.get("/api/tasks/active")
 async def get_active_tasks():
     """
-    获取当前活跃任务列表（用于调试）
+    Get current active task list (for debugging)
     """
     active_count = len(active_tasks)
     summary_count = len(active_summary_tasks)
@@ -1620,9 +1827,11 @@ async def get_active_tasks():
         "active_tasks": active_count,
         "active_summary_tasks": summary_count,
         "processing_urls": processing_count,
-        "task_ids": list(active_tasks.keys())
+        "task_ids": list(active_tasks.keys()),
     }
+
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8001)

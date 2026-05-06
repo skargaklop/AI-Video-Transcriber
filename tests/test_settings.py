@@ -11,8 +11,8 @@ from unittest.mock import patch
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "backend"))
 
-import settings as settings_module
-from settings import (
+import settings as settings_module  # noqa: E402
+from settings import (  # noqa: E402
     DEFAULT_SETTINGS,
     get_credential,
     get_masked_settings,

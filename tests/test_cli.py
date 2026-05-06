@@ -11,8 +11,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "backend"))
 
-import cli
-from cli import AGENT_MANIFEST, build_parser, main
+import cli  # noqa: E402
+from cli import AGENT_MANIFEST, build_parser, main  # noqa: E402
 
 
 class TestAgentHelp(unittest.TestCase):
@@ -185,7 +185,7 @@ class TestSummarizeCommand(unittest.TestCase):
 class TestTasksCommand(unittest.TestCase):
     def test_no_flag_returns_error(self):
         with patch("sys.argv", ["cli.py", "tasks"]):
-            with patch("builtins.print") as mock_print:
+            with patch("builtins.print"):
                 code = main()
                 self.assertEqual(code, 2)
 
@@ -251,7 +251,7 @@ class TestOutputResult(unittest.TestCase):
 
     def test_pretty_output(self):
         data = {"video_title": "Test", "transcript": "Hello world"}
-        with patch("builtins.print") as mock_print:
+        with patch("builtins.print"):
             code = cli._output_result(data, pretty=True)
             self.assertEqual(code, 0)
 
@@ -389,7 +389,7 @@ class TestSettingsSubcommand(unittest.TestCase):
             sf.write_text('{}')
             with patch.object(settings_module, "SETTINGS_FILE", sf):
                 with patch("sys.argv", ["cli.py", "settings", "--set", "groq_model=whisper-large-v3"]):
-                    with patch("cli._output_result") as mock_output:
+                    with patch("cli._output_result"):
                         code = main()
                         self.assertEqual(code, 0)
                         saved = json.loads(sf.read_text())
