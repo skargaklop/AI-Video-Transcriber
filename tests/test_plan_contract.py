@@ -26,6 +26,7 @@ class PlanContractTests(unittest.TestCase):
         self._old_video_processor = main.video_processor
         self._old_summarizer = main.summarizer
         self._old_temp_dir = main.TEMP_DIR
+        self._old_push_task_update = main._push_task_update
 
         main.tasks = {}
         main.processing_urls = set()
@@ -42,6 +43,7 @@ class PlanContractTests(unittest.TestCase):
         main.active_summary_tasks = self._old_active_summary_tasks
         main.video_processor = self._old_video_processor
         main.summarizer = self._old_summarizer
+        main._push_task_update = self._old_push_task_update
         main.TEMP_DIR = self._old_temp_dir
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
@@ -170,8 +172,9 @@ class PlanContractTests(unittest.TestCase):
             "safe_title": "Video",
         }
 
-        with self.assertRaises(main.HTTPException) as ctx:
-            asyncio.run(main.summarize_transcript(task_id=task_id, api_key="", output_format="markdown"))
+        with patch.object(main, "get_credential", return_value=""):
+            with self.assertRaises(main.HTTPException) as ctx:
+                asyncio.run(main.summarize_transcript(task_id=task_id, api_key="", output_format="markdown"))
 
         self.assertEqual(ctx.exception.status_code, 400)
         self.assertIn("summary provider", str(ctx.exception.detail).lower())
@@ -514,14 +517,29 @@ class PlanContractTests(unittest.TestCase):
 
         stage_events = []
 
-        async def fake_broadcast(task_id, task_data):
+        async def fake_push(task_id, task_data=None, **kwargs):
+            if isinstance(task_data, dict) and not kwargs:
+                # Called as broadcast_task_update(task_id, task_data)
+                task = task_data
+            else:
+                # Called as _push_task_update(task_id, *, progress=..., ...)
+                task = main.tasks[task_id]
+                for k in ("status", "progress", "message", "error",
+                          "stage_flow", "stage_steps", "stage_code"):
+                    v = kwargs.get(k)
+                    if v is not None:
+                        task[k] = v
+                idx, total = main._compute_stage_position(
+                    task.get("stage_steps"), task.get("stage_code"))
+                task["stage_index"] = idx
+                task["stage_total"] = total
             stage_events.append(
                 {
-                    "flow": task_data.get("stage_flow"),
-                    "code": task_data.get("stage_code"),
-                    "message": task_data.get("message"),
-                    "index": task_data.get("stage_index"),
-                    "total": task_data.get("stage_total"),
+                    "flow": task.get("stage_flow"),
+                    "code": task.get("stage_code"),
+                    "message": task.get("message"),
+                    "index": task.get("stage_index"),
+                    "total": task.get("stage_total"),
                 }
             )
 
@@ -531,23 +549,24 @@ class PlanContractTests(unittest.TestCase):
         main.tasks[task_id] = {"status": "processing", "url": url}
         main.processing_urls.add(url)
 
-        with patch.object(main, "broadcast_task_update", side_effect=fake_broadcast):
-            with patch.object(main, "backend_dependencies_available", return_value=False):
-                with patch.object(main, "ensure_backend_dependencies") as ensure_deps:
-                    with patch.object(main, "ensure_backend_audio_file", side_effect=lambda audio_path, backend, output_dir: audio_path):
-                        with patch.object(main, "prepare_local_transcriber", return_value=(FakeLocalTranscriber(), "nvidia/parakeet-tdt-0.6b-v3")) as prepare_local:
-                            with patch.object(local_transcription.sys, "platform", "linux"):
-                                with patch.object(local_transcription.sys, "version_info", (3, 12, 0)):
-                                    asyncio.run(
-                                        main.process_video_task(
-                                            task_id,
-                                            url,
-                                            transcription_provider="local",
-                                            try_subtitles_first=False,
-                                            local_backend="parakeet",
-                                            local_model_preset="nvidia/parakeet-tdt-0.6b-v3",
+        with patch.object(main, "_push_task_update", side_effect=fake_push):
+            with patch.object(main, "broadcast_task_update", side_effect=fake_push):
+                with patch.object(main, "backend_dependencies_available", return_value=False):
+                    with patch.object(main, "ensure_backend_dependencies") as ensure_deps:
+                        with patch.object(main, "ensure_backend_audio_file", side_effect=lambda audio_path, backend, output_dir: audio_path):
+                            with patch.object(main, "prepare_local_transcriber", return_value=(FakeLocalTranscriber(), "nvidia/parakeet-tdt-0.6b-v3")) as prepare_local:
+                                with patch.object(local_transcription.sys, "platform", "linux"):
+                                    with patch.object(local_transcription.sys, "version_info", (3, 12, 0)):
+                                        asyncio.run(
+                                            main.process_video_task(
+                                                task_id,
+                                                url,
+                                                transcription_provider="local",
+                                                try_subtitles_first=False,
+                                                local_backend="parakeet",
+                                                local_model_preset="nvidia/parakeet-tdt-0.6b-v3",
+                                            )
                                         )
-                                    )
 
         task = main.tasks[task_id]
         codes = [event["code"] for event in stage_events if event.get("code")]

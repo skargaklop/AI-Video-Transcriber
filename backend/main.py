@@ -583,6 +583,50 @@ async def process_video(
     """
     Process video URL, return transcription task ID. Summary is generated at a separate endpoint upon user confirmation.
     """
+    # Coerce Form/File defaults when called directly (e.g. in tests) rather than via HTTP
+    if not isinstance(groq_api_key, str):
+        groq_api_key = ""
+    if not isinstance(groq_model, str):
+        groq_model = DEFAULT_GROQ_MODEL
+    if not isinstance(groq_language, str):
+        groq_language = ""
+    if not isinstance(groq_prompt, str):
+        groq_prompt = ""
+    if not isinstance(include_timecodes, bool):
+        include_timecodes = False
+    if not isinstance(transcription_provider, str):
+        transcription_provider = "groq"
+    if not isinstance(try_subtitles_first, bool):
+        try_subtitles_first = True
+    if not isinstance(use_local_fallback, bool):
+        use_local_fallback = False
+    if not isinstance(local_backend, str):
+        local_backend = DEFAULT_LOCAL_BACKEND
+    if not isinstance(local_model_preset, str):
+        local_model_preset = "base"
+    if not isinstance(local_model_id, str):
+        local_model_id = ""
+    if not isinstance(local_language, str):
+        local_language = ""
+    if not isinstance(local_api_base_url, str):
+        local_api_base_url = ""
+    if not isinstance(local_api_key, str):
+        local_api_key = ""
+    if not isinstance(local_api_model, str):
+        local_api_model = ""
+    if not isinstance(local_api_language, str):
+        local_api_language = ""
+    if not isinstance(local_api_prompt, str):
+        local_api_prompt = ""
+    if not isinstance(model_id, str):
+        model_id = ""
+    if not isinstance(summary_language, str):
+        summary_language = "zh"
+    if not isinstance(api_key, str):
+        api_key = ""
+    if not isinstance(model_base_url, str):
+        model_base_url = ""
+
     source_file_path = ""
     try:
         _ = (
@@ -1434,6 +1478,21 @@ async def summarize_transcript(
     """
     Start a summary job only after the user confirms sending the transcript.
     """
+    if not isinstance(summary_language, str):
+        summary_language = "en"
+    if not isinstance(api_key, str):
+        api_key = ""
+    if not isinstance(model_base_url, str):
+        model_base_url = ""
+    if not isinstance(model_id, str):
+        model_id = ""
+    if not isinstance(output_format, str):
+        output_format = "markdown"
+    if not isinstance(summary_prompt, str):
+        summary_prompt = ""
+    if not isinstance(reasoning_effort, str):
+        reasoning_effort = ""
+
     if task_id not in tasks:
         raise HTTPException(status_code=404, detail="Task not found")
 
