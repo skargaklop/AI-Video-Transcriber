@@ -3,7 +3,7 @@
 # AI Video Transcriber
 
 
-Transcribe videos or local audio files and generate AI summaries with explicit provider control.
+Transcribe videos or local audio files, combine multiple transcription sources, and generate AI summaries with explicit provider control.
 
 ![Interface](en-video.png)
 
@@ -15,7 +15,8 @@ Transcribe videos or local audio files and generate AI summaries with explicit p
 - Video URL and local audio file input modes
 - Optional YouTube subtitle-first path
 - Selectable transcription providers: Groq, Local, Local API
-- Local Whisper and Parakeet support
+- Multi-source transcription across platform subtitles, Groq Whisper, local Whisper, and local Parakeet
+- Local Whisper and Parakeet model selection inside the Multi-Source workflow
 - Separate summary step with OpenAI-compatible providers
 - Transcript and summary export improvements
 
@@ -23,10 +24,12 @@ Transcribe videos or local audio files and generate AI summaries with explicit p
 
 - Multi-platform URL support through `yt-dlp`
 - Local audio file upload and processing
-- Explicit provider selection for transcription
+- Explicit provider selection for single-source transcription
 - Optional Groq-to-local fallback
-- Dual local transcription: run Whisper + Parakeet concurrently on the same audio, then deterministically merge or AI-merge the results
+- Multi-source transcription: run any combination of platform subtitles, Groq Whisper, local Whisper, and local Parakeet concurrently where possible
+- Multi-source output modes: deterministic system merge, raw source bundle, or AI merge through an OpenAI-compatible endpoint
 - Optional transcript time codes
+- Separate model fetching for summary and AI-merge providers
 - Custom summary prompt plus summary language control
 - Summary provider model selection and reasoning selection when supported
 - UI export to MD, TXT, and PDF
@@ -53,12 +56,22 @@ avt transcribe --url "https://youtu.be/VIDEO_ID" --provider groq
 # Transcribe a local audio file
 avt transcribe --file recording.mp3 --provider groq
 
-# Dual local transcription: run Whisper + Parakeet together
-avt transcribe --url "https://youtu.be/VIDEO_ID" --dual-local
+# Multi-source: platform subtitles + Groq + local Parakeet, raw bundle output
+avt transcribe --url "https://youtu.be/VIDEO_ID" \
+    --source platform,groq,local_parakeet --merge-mode raw
 
-# Dual local with AI merge
-avt transcribe --url "https://youtu.be/VIDEO_ID" --dual-local \
-    --merge-use-ai --merge-model gpt-4o
+# Multi-source: local Whisper + local Parakeet with deterministic merge
+avt transcribe --url "https://youtu.be/VIDEO_ID" \
+    --provider local --source local_whisper,local_parakeet \
+    --merge-mode system --merge-primary-source local_whisper \
+    --dual-whisper-model-preset large-v3 \
+    --dual-parakeet-model-preset nvidia/parakeet-tdt-0.6b-v3
+
+# Multi-source with AI merge through an OpenAI-compatible endpoint
+avt transcribe --url "https://youtu.be/VIDEO_ID" \
+    --source platform,groq,local_parakeet \
+    --merge-mode ai --merge-base-url https://api.openai.com/v1 \
+    --merge-api-key sk-... --merge-model gpt-4o
 
 # Summarize a completed transcription
 avt summarize --task-id "TASK_ID" --summary-language en
@@ -78,7 +91,7 @@ avt --agent-help
 
 The `avt` command is registered on PATH when you run `start_windows.bat` and accept the PATH prompt (or manually via `pip install -e .` from the project root). If not on PATH, use `python cli.py` instead.
 
-Full flag reference, output schemas, and workflow patterns are in [`ai-video-transcriber/SKILL.md`](ai-video-transcriber/SKILL.md).
+Full flag reference, output schemas, and workflow patterns are in the Codex skill at `D:\Projects\.codex\skills\ai-video-transcriber\SKILL.md`.
 
 ## Quick Start
 
@@ -134,16 +147,26 @@ Use `--prod` for long jobs so hot reload does not interrupt the SSE progress str
    - `Groq`
    - `Local`
    - `Local API`
-5. For YouTube URLs, optionally leave `Try YouTube subtitles first` enabled.
+5. For YouTube URLs, optionally leave `Try YouTube subtitles first` enabled for single-source flows.
 6. Configure the selected provider:
    - `Groq`: API key, Groq model, optional language, optional prompt
    - `Local`: backend (`Whisper` or `Parakeet`), preset or custom model, optional language hint
    - `Local API`: base URL, API key if needed, model, optional language, optional prompt
-7. Configure the summary provider if you want summaries.
-8. Click `Transcribe`.
-9. Review the transcript.
-10. Click `Generate Summary` only when you want to send transcript text to the summary provider.
-11. Export transcript or summary from the UI.
+7. To run concurrent transcription, enable `Multi-Source Transcription` and select any sources:
+   - `Platform subtitles`
+   - `Groq Whisper`
+   - `Local Whisper`
+   - `Local Parakeet`
+8. If `Local Whisper` or `Local Parakeet` is selected in Multi-Source, choose its model in that same Multi-Source section.
+9. Choose the Multi-Source merge mode:
+   - `System merge (deterministic)`: choose a required primary source when two or more sources are selected.
+   - `Raw bundle`: keep separate successful and failed source outputs for manual review.
+   - `AI merge`: merge through a separate OpenAI-compatible endpoint, API key, and model.
+10. Configure the summary provider if you want summaries.
+11. Click `Transcribe`.
+12. Review the transcript.
+13. Click `Generate Summary` only when you want to send transcript text to the summary provider.
+14. Export transcript or summary from the UI.
 
 ## Transcription Providers
 
@@ -164,6 +187,29 @@ Use `--prod` for long jobs so hot reload does not interrupt the SSE progress str
 - Uses an OpenAI-compatible speech-to-text API exposed by another local or remote server
 - Useful when you run ASR outside this app
 
+## Multi-Source Transcription
+
+Multi-Source Transcription is the main workflow for concurrent transcription. It replaces the old separate Dual Local UI.
+
+Available sources:
+
+| Source ID | UI label | Notes |
+| --- | --- | --- |
+| `platform` | Platform subtitles | Uses platform subtitles when available, especially YouTube subtitles |
+| `groq` | Groq Whisper | Uses Groq transcription; URL jobs may retry by uploading downloaded audio when media URL retrieval fails |
+| `local_whisper` | Local Whisper | Uses the selected local Whisper preset or custom model |
+| `local_parakeet` | Local Parakeet | Uses the selected local Parakeet preset or custom model |
+
+Merge modes:
+
+| Mode | Behavior |
+| --- | --- |
+| `system` | Deterministic merge. Requires an explicit primary source when two or more sources are selected. If the selected primary source fails, the app warns and falls back to the first successful source. |
+| `raw` | No merge. The result shows selected, completed, failed, and pending sources, plus per-source artifact files. |
+| `ai` | Sends successful source transcripts to an OpenAI-compatible merge endpoint using the configured merge API base URL, API key, and model. |
+
+The CLI still supports `--dual-local` for backward compatibility. In the browser UI, use Multi-Source with `Local Whisper` and `Local Parakeet` selected instead.
+
 ## Summary Providers
 
 - Any OpenAI-compatible API base URL
@@ -183,6 +229,8 @@ AI-Video-Transcriber/
 |   |-- local_transcription.py
 |   |-- parakeet_transcriber.py
 |   |-- local_api_transcriber.py
+|   |-- source_registry.py
+|   |-- transcript_merge.py
 |   `-- summarizer.py
 |-- static/
 |   |-- index.html

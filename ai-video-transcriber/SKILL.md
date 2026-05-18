@@ -17,10 +17,11 @@ description: Transcribe video/audio to text and generate AI summaries via the CL
 
 Use this CLI when you need to:
 - Extract text transcript from a video URL (YouTube, etc.) or local audio/video file
+- Run multi-source transcription across platform subtitles, Groq Whisper, local Whisper, and local Parakeet
+- Return a raw bundle of source transcripts or merge them deterministically / with an OpenAI-compatible model
 - Generate an AI summary of a transcript
 - Do both in a single step (pipeline)
 - Manage previously created transcription tasks
-- View or configure shared settings and credentials
 
 Do NOT use this CLI for:
 - Real-time streaming transcription
@@ -39,32 +40,7 @@ python cli.py transcribe --help
 python cli.py summarize --help
 python cli.py pipeline --help
 python cli.py tasks --help
-python cli.py settings --help
 ```
-
-## Credential Resolution
-
-Credentials are resolved in priority order (highest → lowest):
-
-1. **Environment variables** (`GROQ_API_KEY`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`)
-2. **`settings.json`** (shared file, written by GUI and CLI)
-3. Hardcoded defaults
-
-**Recommended workflow:**
-```
-1. Start the server (python start.py)
-2. Browser opens → enter all credentials & settings in the GUI
-3. Settings are saved to settings.json on disk
-4. From this point, both GUI and CLI read from the same settings.json
-```
-
-**Alternative — set credentials via CLI:**
-```bash
-python cli.py settings --set-groq-key
-python cli.py settings --set-openai-key
-```
-
-A `.env` file in the project root is auto-loaded. Existing env vars are never overwritten.
 
 ## Commands
 
@@ -75,10 +51,13 @@ Converts a video URL or local audio file into a text transcript.
 **Minimum viable invocation:**
 ```bash
 # From URL (Groq cloud — fastest)
-python cli.py transcribe --url "https://youtu.be/VIDEO_ID"
+python cli.py transcribe --url "https://youtu.be/VIDEO_ID" --groq-api-key "gsk-xxx"
 
 # From local file
-python cli.py transcribe --file /path/to/audio.mp3
+python cli.py transcribe --file /path/to/audio.mp3 --groq-api-key "gsk-xxx"
+
+# Local Whisper without cloud transcription
+python cli.py transcribe --url "https://youtu.be/VIDEO_ID" --provider local --local-backend whisper --local-model base
 ```
 
 **Full control:**
@@ -86,6 +65,7 @@ python cli.py transcribe --file /path/to/audio.mp3
 python cli.py transcribe \
     --url "URL" \
     --provider groq \
+    --groq-api-key "gsk-xxx" \
     --groq-model "whisper-large-v3-turbo" \
     --language "en" \
     --include-timecodes \
@@ -101,6 +81,65 @@ python cli.py transcribe \
 | Have Groq API key, want speed | `--provider groq` (default) |
 | Need offline/private | `--provider local --local-backend whisper --local-model base` |
 | Have self-hosted Whisper API | `--provider local_api --local-api-base-url http://... --local-api-model ...` |
+| Need concurrent comparison or merge | `--source platform,groq,local_whisper,local_parakeet --merge-mode raw|system|ai` |
+
+**Multi-source examples:**
+```bash
+# Keep separate outputs for manual review
+python cli.py transcribe \
+    --url "https://youtu.be/VIDEO_ID" \
+    --source platform,groq,local_parakeet \
+    --merge-mode raw \
+    --groq-api-key "gsk-xxx"
+
+# Deterministic merge with explicit primary source
+python cli.py transcribe \
+    --url "https://youtu.be/VIDEO_ID" \
+    --source platform,groq,local_whisper \
+    --merge-mode system \
+    --merge-primary-source groq \
+    --groq-api-key "gsk-xxx"
+
+# Local Whisper + local Parakeet through the canonical multi-source path
+python cli.py transcribe \
+    --url "https://youtu.be/VIDEO_ID" \
+    --provider local \
+    --source local_whisper,local_parakeet \
+    --merge-mode system \
+    --merge-primary-source local_whisper \
+    --dual-whisper-model-preset large-v3 \
+    --dual-parakeet-model-preset nvidia/parakeet-tdt-0.6b-v3
+
+# AI merge through an OpenAI-compatible endpoint
+python cli.py transcribe \
+    --url "https://youtu.be/VIDEO_ID" \
+    --source platform,groq,local_parakeet \
+    --merge-mode ai \
+    --merge-base-url "https://api.openai.com/v1" \
+    --merge-api-key "sk-xxx" \
+    --merge-model "gpt-4o"
+```
+
+**Legacy dual-local examples:**
+```bash
+# Backward-compatible dual local mode
+python cli.py transcribe \
+    --url "https://youtu.be/VIDEO_ID" \
+    --provider local \
+    --dual-local \
+    --dual-whisper-model-preset large-v3 \
+    --dual-parakeet-model-preset nvidia/parakeet-tdt-0.6b-v3
+
+# Backward-compatible dual local mode with AI merge
+python cli.py transcribe \
+    --url "https://youtu.be/VIDEO_ID" \
+    --provider local \
+    --dual-local \
+    --merge-use-ai \
+    --merge-base-url "https://api.openai.com/v1" \
+    --merge-api-key "sk-xxx" \
+    --merge-model "gpt-4o"
+```
 
 **Output (JSON to stdout):**
 ```json
@@ -122,18 +161,20 @@ Generates an AI summary from an existing transcript.
 
 **From a prior task:**
 ```bash
-python cli.py summarize --task-id "TASK_UUID" --summary-language en
+python cli.py summarize --task-id "TASK_UUID" --openai-api-key "sk-xxx" --summary-language en
 ```
 
 **From a file:**
 ```bash
-python cli.py summarize --transcript-file transcript.md --summary-language en
+python cli.py summarize --transcript-file transcript.md --openai-api-key "sk-xxx" --summary-language en
 ```
 
 **With custom prompt and output:**
 ```bash
 python cli.py summarize \
     --transcript-file transcript.md \
+    --openai-api-key "sk-xxx" \
+    --openai-base-url "https://custom-endpoint/v1" \
     --model "gpt-4o" \
     --summary-language en \
     --prompt "Focus on key technical decisions and action items" \
@@ -160,6 +201,8 @@ Transcribe + summarize in a single invocation. Combines all flags from `transcri
 ```bash
 python cli.py pipeline \
     --url "https://youtu.be/VIDEO_ID" \
+    --groq-api-key "gsk-xxx" \
+    --openai-api-key "sk-xxx" \
     --summary-language en \
     --output-format markdown \
     --summary-output summary.md
@@ -203,63 +246,63 @@ python cli.py tasks --delete "TASK_UUID"
 }
 ```
 
-### 5. settings
-
-View and manage shared settings (`settings.json`).
-
-```bash
-# Show current settings (credentials masked)
-python cli.py settings --show
-
-# Set a single value
-python cli.py settings --set groq_model=whisper-large-v3
-python cli.py settings --set openai_base_url=https://api.openai.com/v1
-
-# Securely set credentials (prompted, no echo)
-python cli.py settings --set-groq-key
-python cli.py settings --set-openai-key
-```
-
 ## All Flags Reference
 
 ### transcribe / pipeline (transcription flags)
 
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--url` | string | | Video URL (YouTube, etc.) |
-| `--file` | string | | Local audio/video file path |
-| `--provider` | enum | `groq` | `groq`, `local`, or `local_api` |
-| `--groq-model` | string | `whisper-large-v3-turbo` | Groq model name |
-| `--language` | string | `auto` | Language code or `auto` |
-| `--include-timecodes` | boolean | `false` | Keep timecodes in transcript |
-| `--skip-subtitles` | boolean | `false` | Skip YouTube subtitle extraction |
-| `--local-backend` | enum | `whisper` | `whisper` or `parakeet` |
-| `--local-model` | string | `base` | Local model preset or ID |
-| `--local-api-base-url` | string | | Local API endpoint URL (for `local_api`) |
-| `--local-api-key` | string | | Local API key (for `local_api`) |
-| `--local-api-model` | string | | Local API model name (for `local_api`) |
-| `--local-api-language` | string | | Local API language code (for `local_api`) |
-| `--local-api-prompt` | string | | Local API prompt (for `local_api`) |
-| `--output` | string | | Write output to file path |
-| `--format` | enum | `json` | `json`, `markdown`, or `txt` |
+| Flag | Type | Default | Env Var | Description |
+|------|------|---------|---------|-------------|
+| `--url` | string | | | Video URL (YouTube, etc.) |
+| `--file` | string | | | Local audio/video file path |
+| `--provider` | enum | `groq` | | `groq`, `local`, or `local_api` |
+| `--groq-api-key` | string | | `GROQ_API_KEY` | Groq API key |
+| `--groq-model` | string | `whisper-large-v3-turbo` | | Groq model name |
+| `--language` | string | `auto` | | Language code or `auto` |
+| `--include-timecodes` | boolean | `false` | | Keep timecodes in transcript |
+| `--skip-subtitles` | boolean | `false` | | Skip YouTube subtitle extraction |
+| `--local-backend` | enum | `whisper` | | `whisper` or `parakeet` |
+| `--local-model` | string | `base` | | Local model preset or ID |
+| `--source` | CSV string | | | Multi-source IDs: `platform`, `groq`, `local_whisper`, `local_parakeet` |
+| `--merge-mode` | enum | `system` | | Multi-source merge mode: `system`, `raw`, or `ai` |
+| `--merge-primary-source` | string | | | Required for `system` merge when two or more sources are selected |
+| `--merge-base-url` | string | | | OpenAI-compatible API base URL for AI merge |
+| `--merge-api-key` | string | | | API key for AI merge |
+| `--merge-model` | string | | | Model name for AI merge |
+| `--merge-prompt` | string | | | Optional AI merge instructions |
+| `--merge-reasoning-effort` | enum | | | `none`, `minimal`, `low`, `medium`, `high`, `xhigh` |
+| `--merge-use-ai` | boolean | `false` | | Legacy dual-local flag: use AI merge instead of deterministic merge |
+| `--dual-local` | boolean | `false` | | Legacy compatibility alias for `--source local_whisper,local_parakeet` with `--provider local` |
+| `--dual-whisper-model-preset` | string | `base` | | Whisper preset used by local Whisper in dual/multi-source local flows |
+| `--dual-whisper-model-id` | string | | | Custom Whisper model ID |
+| `--dual-parakeet-model-preset` | string | | | Parakeet preset used by local Parakeet in dual/multi-source local flows |
+| `--dual-parakeet-model-id` | string | | | Custom Parakeet model ID |
+| `--local-api-base-url` | string | | | Local API endpoint URL (for `local_api`) |
+| `--local-api-key` | string | | | Local API key (for `local_api`) |
+| `--local-api-model` | string | | | Local API model name (for `local_api`) |
+| `--local-api-language` | string | | | Local API language code (for `local_api`) |
+| `--local-api-prompt` | string | | | Local API prompt (for `local_api`) |
+| `--output` | string | | | Write output to file path |
+| `--format` | enum | `json` | | `json`, `markdown`, or `txt` |
 
 ### summarize (source flags — not available in pipeline)
 
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--task-id` | string | | Task ID from prior transcribe run |
-| `--transcript-file` | string | | Path to transcript text file |
+| Flag | Type | Default | Env Var | Description |
+|------|------|---------|---------|-------------|
+| `--task-id` | string | | | Task ID from prior transcribe run |
+| `--transcript-file` | string | | | Path to transcript text file |
 
 ### summarize / pipeline (summary config flags)
 
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--model` | string | `gpt-4o` | Model name |
-| `--summary-language` | string | `en` | Summary language code |
-| `--output-format` | enum | `markdown` | `markdown`, `html`, or `txt` |
-| `--summary-output` | string | | Write summary to file path |
-| `--prompt` | string | | Custom summary instructions |
-| `--reasoning-effort` | enum | | `none`, `minimal`, `low`, `medium`, `high`, `xhigh` |
+| Flag | Type | Default | Env Var | Description |
+|------|------|---------|---------|-------------|
+| `--openai-api-key` | string | | `OPENAI_API_KEY` | OpenAI API key |
+| `--openai-base-url` | string | | `OPENAI_BASE_URL` | OpenAI base URL |
+| `--model` | string | `gpt-4o` | | Model name |
+| `--summary-language` | string | `en` | | Summary language code |
+| `--output-format` | enum | `markdown` | | `markdown`, `html`, or `txt` |
+| `--summary-output` | string | | | Write summary to file path |
+| `--prompt` | string | | | Custom summary instructions |
+| `--reasoning-effort` | enum | | | `none`, `minimal`, `low`, `medium`, `high`, `xhigh` |
 
 ### tasks
 
@@ -268,15 +311,6 @@ python cli.py settings --set-openai-key
 | `--list` | boolean | List all tasks |
 | `--get` | string | Get task by ID |
 | `--delete` | string | Delete task by ID |
-
-### settings
-
-| Flag | Type | Description |
-|------|------|-------------|
-| `--show` | boolean | Show current settings (credentials masked) |
-| `--set KEY=VALUE` | string | Set a key=value pair |
-| `--set-groq-key` | boolean | Prompt for Groq API key (no echo) |
-| `--set-openai-key` | boolean | Prompt for OpenAI API key (no echo) |
 
 ### Global flags
 
@@ -288,23 +322,15 @@ python cli.py settings --set-openai-key
 
 ## API Key Sourcing
 
-Credentials are resolved automatically — no need to pass keys on every invocation.
+Keys can be provided via CLI flags or environment variables. **Flags take precedence.**
 
-**Priority (highest → lowest):**
-1. Environment variables: `GROQ_API_KEY`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`
-2. `settings.json` (shared, written by GUI or `cli.py settings`)
-3. `.env` file (auto-loaded from project root)
+| Key | Flag | Env Var |
+|-----|------|---------|
+| Groq (transcription) | `--groq-api-key` | `GROQ_API_KEY` |
+| OpenAI (summarization) | `--openai-api-key` | `OPENAI_API_KEY` |
+| OpenAI base URL | `--openai-base-url` | `OPENAI_BASE_URL` |
 
-**Recommended setup:**
-```bash
-# Option A: Via CLI
-python cli.py settings --set-groq-key
-python cli.py settings --set-openai-key
-
-# Option B: Via GUI (start server, open browser, enter keys in settings panel)
-
-# Option C: Via environment variables or .env file
-```
+A `.env` file in the project root is auto-loaded. Existing env vars are never overwritten.
 
 ## Output Modes
 
@@ -338,32 +364,33 @@ python cli.py settings --set-openai-key
 | Error | Cause | Fix |
 |-------|-------|-----|
 | `Either --url or --file is required` | No input source | Add `--url` or `--file` |
-| `Groq API key is required` | Missing key for groq provider | Set via env var, GUI, or `settings --set-groq-key` |
-| `OpenAI API key is required` | Missing key for summarization | Set via env var, GUI, or `settings --set-openai-key` |
+| `Groq API key is required` | Missing key for groq provider | Set `--groq-api-key` or `GROQ_API_KEY` |
+| `OpenAI API key is required` | Missing key for summarization | Set `--openai-api-key` or `OPENAI_API_KEY` |
 | `File not found: <path>` | Invalid `--file` or `--transcript-file` path | Verify file exists |
 | `Task not found: <id>` | Invalid task ID | Run `tasks --list` to find valid IDs |
 | `Local API base URL is required` | `--provider local_api` without URL | Add `--local-api-base-url` |
 | `Unsupported transcription provider` | Invalid `--provider` value | Use `groq`, `local`, or `local_api` |
+| `Select a primary source for system merge` | Multi-source `system` merge has two or more sources but no primary source | Add `--merge-primary-source <source_id>` or use `--merge-mode raw` / `--merge-mode ai` |
 
 ## Chained Workflow Patterns
 
 ### Pattern A: Transcribe, review, then summarize
 ```bash
 # Step 1: Transcribe
-RESULT=$(python cli.py transcribe --url "URL" --quiet)
+RESULT=$(python cli.py transcribe --url "URL" --groq-api-key "KEY" --quiet)
 TASK_ID=$(echo "$RESULT" | python -c "import sys,json; print(json.load(sys.stdin)['task_id'])")
 
 # Step 2: Inspect transcript
 python cli.py tasks --get "$TASK_ID" --quiet
 
 # Step 3: Summarize
-python cli.py summarize --task-id "$TASK_ID" --quiet
+python cli.py summarize --task-id "$TASK_ID" --openai-api-key "KEY" --quiet
 ```
 
 ### Pattern B: Batch transcribe multiple videos
 ```bash
 for URL in "https://youtu.be/a" "https://youtu.be/b" "https://youtu.be/c"; do
-    python cli.py transcribe --url "$URL" \
+    python cli.py transcribe --url "$URL" --groq-api-key "KEY" \
         --output "transcripts/$(echo $URL | md5sum | cut -c1-8).md" \
         --format markdown --quiet
 done
@@ -374,12 +401,12 @@ done
 TASK_ID="existing-task-uuid"
 
 # Technical summary
-python cli.py summarize --task-id "$TASK_ID" \
+python cli.py summarize --task-id "$TASK_ID" --openai-api-key "KEY" \
     --prompt "Extract all technical details, tools, and architecture decisions" \
     --summary-output tech_summary.md --quiet
 
 # Action items summary
-python cli.py summarize --task-id "$TASK_ID" \
+python cli.py summarize --task-id "$TASK_ID" --openai-api-key "KEY" \
     --prompt "List all action items, deadlines, and assigned owners" \
     --summary-output actions.md --quiet
 ```
@@ -387,8 +414,11 @@ python cli.py summarize --task-id "$TASK_ID" \
 ## Important Notes
 
 - The CLI shares task state with the web UI via `temp/tasks.json`
-- The CLI shares credentials and settings with the GUI via `settings.json`
 - Transcript files are saved in the `temp/` directory
 - The `--file` flag copies the file to `temp/` before processing (original is not modified)
 - `pipeline` runs two separate `asyncio.run()` calls sequentially
+- The browser UI uses Multi-Source Transcription as the only concurrent transcription path
+- The old separate Dual Local UI was removed; select `local_whisper` and `local_parakeet` in Multi-Source instead
+- `--dual-local` remains available for CLI/API backward compatibility, but new automation should prefer `--source local_whisper,local_parakeet`
+- For `--merge-mode raw`, failed sources do not hide successful source artifacts; inspect the returned raw bundle and per-source files
 - No web server needs to be running — the CLI imports backend modules directly
