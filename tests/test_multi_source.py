@@ -1037,7 +1037,7 @@ class FrontendMultiSourceTests(unittest.TestCase):
         self.assertIn("_startStatusPolling", app_js)
         self.assertIn("_handleTaskUpdate(task)", app_js)
         self.assertIn("fetch(`${this.apiBase}/task-status/${this.currentTaskId}`)", app_js)
-        self.assertIn("app.js?v=20260518-multi-source-status-line-case", index_html)
+        self.assertIn("app.js?v=20260518-consolidate-dual-into-multi-source", index_html)
 
     def test_frontend_progress_prefers_live_backend_message_over_stage_label(self):
         app_js = (PROJECT_ROOT / "static" / "app.js").read_text(encoding="utf-8")
@@ -1045,12 +1045,20 @@ class FrontendMultiSourceTests(unittest.TestCase):
         self.assertIn("msg && stageLabel && msg !== stageLabel", app_js)
         self.assertIn("fallback.charAt(0).toUpperCase() + fallback.slice(1)", app_js)
 
-    def test_frontend_does_not_submit_stale_dual_local_for_groq(self):
+    def test_frontend_always_sends_false_for_dual_local(self):
         app_js = (PROJECT_ROOT / "static" / "app.js").read_text(encoding="utf-8")
-        self.assertIn("if (!isLocal && this.dualLocalInput?.checked)", app_js)
-        self.assertIn("this.dualLocalInput.checked = false", app_js)
-        self.assertIn("transcriptionProvider === 'local' && msSources.length === 0", app_js)
-        self.assertIn("fd.append('dual_local_transcription', dualLocal ? 'true' : 'false')", app_js)
+        self.assertIn("fd.append('dual_local_transcription', 'false')", app_js)
+        self.assertNotIn("dualLocalInput", app_js)
+
+    def test_frontend_shows_local_model_controls_in_multi_source(self):
+        app_js = (PROJECT_ROOT / "static" / "app.js").read_text(encoding="utf-8")
+        index_html = (PROJECT_ROOT / "static" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("msLocalWhisperSettings", app_js)
+        self.assertIn("msLocalParakeetSettings", app_js)
+        self.assertIn("ms-local-whisper", index_html)
+        self.assertIn("ms-local-parakeet", index_html)
+        self.assertIn("showLocalWhisper", app_js)
+        self.assertIn("showLocalParakeet", app_js)
 
     def test_settings_panel_height_allows_expanded_multi_source_controls(self):
         index_html = (PROJECT_ROOT / "static" / "index.html").read_text(encoding="utf-8")

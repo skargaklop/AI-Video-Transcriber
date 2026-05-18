@@ -862,21 +862,14 @@ class VideoTranscriber {
     this.reasoningEffortSelect = document.getElementById('reasoningEffortSelect');
     this.fetchIcon = document.getElementById('fetchIcon');
     this.localCapabilities = null;
-    this.dualLocalInput = document.getElementById('dualLocalInput');
-    this.dualLocalRow = document.getElementById('dualLocalRow');
     this.dualWhisperModelPresetSelect = document.getElementById('dualWhisperModelPresetSelect');
-    this.dualWhisperCustomRow = document.getElementById('dualWhisperCustomRow');
+    this.dualWhisperCustomRow = document.getElementById('msWhisperCustomRow');
     this.dualWhisperModelIdInput = document.getElementById('dualWhisperModelIdInput');
     this.dualParakeetModelPresetSelect = document.getElementById('dualParakeetModelPresetSelect');
-    this.dualParakeetCustomRow = document.getElementById('dualParakeetCustomRow');
+    this.dualParakeetCustomRow = document.getElementById('msParakeetCustomRow');
     this.dualParakeetModelIdInput = document.getElementById('dualParakeetModelIdInput');
-    this.mergeUseAiInput = document.getElementById('mergeUseAiInput');
-    this.mergeBaseUrlInput = document.getElementById('mergeBaseUrlInput');
-    this.mergeApiKeyInput = document.getElementById('mergeApiKeyInput');
-    this.mergeModelInput = document.getElementById('mergeModelInput');
-    this.mergePromptInput = document.getElementById('mergePromptInput');
-    this.mergeReasoningEffortSelect = document.getElementById('mergeReasoningEffortSelect');
-    this.dualLocalSettings = Array.from(document.querySelectorAll('.dual-local-setting'));
+    this.msLocalWhisperSettings = Array.from(document.querySelectorAll('.ms-local-whisper'));
+    this.msLocalParakeetSettings = Array.from(document.querySelectorAll('.ms-local-parakeet'));
     // Multi-source elements
     this.multiSourceEnabledInput = document.getElementById('multiSourceEnabledInput');
     this.sourceCheckboxes = Array.from(document.querySelectorAll('.source-checkbox'));
@@ -952,10 +945,6 @@ class VideoTranscriber {
       this._syncProviderSettings();
       this._saveSettings();
     });
-    this.dualLocalInput.addEventListener('change', () => {
-      this._syncDualSettings();
-      this._saveSettings();
-    });
     this.multiSourceEnabledInput?.addEventListener('change', () => {
       this._syncMultiSourceSettings();
       this._saveSettings();
@@ -972,11 +961,11 @@ class VideoTranscriber {
     });
     this.mergePrimarySourceSelect?.addEventListener('change', () => this._saveSettings());
     this.dualWhisperModelPresetSelect.addEventListener('change', () => {
-      this._syncDualSettings();
+      this._syncMultiSourceSettings();
       this._saveSettings();
     });
     this.dualParakeetModelPresetSelect.addEventListener('change', () => {
-      this._syncDualSettings();
+      this._syncMultiSourceSettings();
       this._saveSettings();
     });
 
@@ -1016,17 +1005,10 @@ class VideoTranscriber {
       this.includeTimecodesInput,
       this.summaryFormatSel,
       this.summaryPromptInput,
-      this.dualLocalInput,
       this.dualWhisperModelPresetSelect,
       this.dualWhisperModelIdInput,
       this.dualParakeetModelPresetSelect,
       this.dualParakeetModelIdInput,
-      this.mergeUseAiInput,
-      this.mergeBaseUrlInput,
-      this.mergeApiKeyInput,
-      this.mergeModelInput,
-      this.mergePromptInput,
-      this.mergeReasoningEffortSelect,
       this.mergeModeSelect,
       this.mergePrimarySourceSelect,
       this.msMergeBaseUrlInput,
@@ -1180,17 +1162,10 @@ class VideoTranscriber {
       summaryPrompt: this.summaryPromptInput.value,
       transcriptSaveFormat: this.saveTranscriptFormatTop.value,
       summarySaveFormat: this.saveSummaryFormatTop.value,
-      dualLocal: this.dualLocalInput.checked,
       dualWhisperModelPreset: this.dualWhisperModelPresetSelect?.value || 'base',
       dualWhisperModelId: this.dualWhisperModelIdInput?.value || '',
       dualParakeetModelPreset: this.dualParakeetModelPresetSelect?.value || '',
       dualParakeetModelId: this.dualParakeetModelIdInput?.value || '',
-      mergeUseAi: this.mergeUseAiInput?.checked || false,
-      mergeBaseUrl: this.mergeBaseUrlInput?.value || '',
-      mergeApiKey: this.mergeApiKeyInput?.value || '',
-      mergeModel: this.mergeModelInput?.value || '',
-      mergePrompt: this.mergePromptInput?.value || '',
-      mergeReasoningEffort: this.mergeReasoningEffortSelect?.value || '',
       multiSourceEnabled: this.multiSourceEnabledInput?.checked || false,
       msSources: this._getSelectedSources(),
       msMergeMode: this.mergeModeSelect?.value || 'system',
@@ -1236,17 +1211,10 @@ class VideoTranscriber {
       this.includeTimecodesInput.checked = Boolean(s.includeTimecodes);
       if (s.summaryFormat) this.summaryFormatSel.value = s.summaryFormat;
       if (s.summaryPrompt) this.summaryPromptInput.value = s.summaryPrompt;
-      if (this.dualLocalInput) this.dualLocalInput.checked = Boolean(s.dualLocal);
       this._savedDualWhisperModelPreset = s.dualWhisperModelPreset || '';
       if (s.dualWhisperModelId && this.dualWhisperModelIdInput) this.dualWhisperModelIdInput.value = s.dualWhisperModelId;
       this._savedDualParakeetModelPreset = s.dualParakeetModelPreset || '';
       if (s.dualParakeetModelId && this.dualParakeetModelIdInput) this.dualParakeetModelIdInput.value = s.dualParakeetModelId;
-      if (this.mergeUseAiInput) this.mergeUseAiInput.checked = Boolean(s.mergeUseAi);
-      if (s.mergeBaseUrl && this.mergeBaseUrlInput) this.mergeBaseUrlInput.value = s.mergeBaseUrl;
-      if (s.mergeApiKey && !s.mergeApiKey.includes('...') && this.mergeApiKeyInput) this.mergeApiKeyInput.value = s.mergeApiKey;
-      if (s.mergeModel && this.mergeModelInput) this.mergeModelInput.value = s.mergeModel;
-      if (s.mergePrompt && this.mergePromptInput) this.mergePromptInput.value = s.mergePrompt;
-      if (s.mergeReasoningEffort && this.mergeReasoningEffortSelect) this.mergeReasoningEffortSelect.value = s.mergeReasoningEffort;
       if (this.multiSourceEnabledInput) this.multiSourceEnabledInput.checked = Boolean(s.multiSourceEnabled);
       if (Array.isArray(s.msSources)) {
         this.sourceCheckboxes.forEach(cb => { cb.checked = s.msSources.includes(cb.value); });
@@ -1312,17 +1280,10 @@ class VideoTranscriber {
       if (s.local_api_language) this.localApiLanguageInput.value = s.local_api_language;
       if (s.local_api_prompt) this.localApiPromptInput.value = s.local_api_prompt;
       this.includeTimecodesInput.checked = Boolean(s.include_timecodes);
-      if (this.dualLocalInput && s.dual_local_transcription !== undefined) this.dualLocalInput.checked = Boolean(s.dual_local_transcription);
       if (s.dual_whisper_model_preset) this._savedDualWhisperModelPreset = s.dual_whisper_model_preset;
       if (s.dual_whisper_model_id && this.dualWhisperModelIdInput) this.dualWhisperModelIdInput.value = s.dual_whisper_model_id;
       if (s.dual_parakeet_model_preset) this._savedDualParakeetModelPreset = s.dual_parakeet_model_preset;
       if (s.dual_parakeet_model_id && this.dualParakeetModelIdInput) this.dualParakeetModelIdInput.value = s.dual_parakeet_model_id;
-      if (this.mergeUseAiInput && s.merge_use_ai !== undefined) this.mergeUseAiInput.checked = Boolean(s.merge_use_ai);
-      if (s.merge_base_url && this.mergeBaseUrlInput) this.mergeBaseUrlInput.value = s.merge_base_url;
-      if (s.merge_api_key && !s.merge_api_key.includes('...') && this.mergeApiKeyInput) this.mergeApiKeyInput.value = s.merge_api_key;
-      if (s.merge_model && this.mergeModelInput) this.mergeModelInput.value = s.merge_model;
-      if (s.merge_prompt && this.mergePromptInput) this.mergePromptInput.value = s.merge_prompt;
-      if (s.merge_reasoning_effort && this.mergeReasoningEffortSelect) this.mergeReasoningEffortSelect.value = s.merge_reasoning_effort;
       if (s.transcription_sources) {
         try {
           const msSources = JSON.parse(s.transcription_sources);
@@ -1367,17 +1328,12 @@ class VideoTranscriber {
       summary_format: this.summaryFormatSel.value,
       summary_prompt: this.summaryPromptInput.value.trim(),
       reasoning_effort: this.reasoningEffortSelect.value,
-      dual_local_transcription: this.transcriptionProviderSelect.value === 'local' && !this.multiSourceEnabledInput?.checked && Boolean(this.dualLocalInput?.checked),
+      dual_local_transcription: false,
       dual_whisper_model_preset: this.dualWhisperModelPresetSelect?.value || 'base',
       dual_whisper_model_id: this.dualWhisperModelIdInput?.value?.trim() || '',
       dual_parakeet_model_preset: this.dualParakeetModelPresetSelect?.value || '',
       dual_parakeet_model_id: this.dualParakeetModelIdInput?.value?.trim() || '',
-      merge_use_ai: this.mergeUseAiInput?.checked || false,
-      merge_base_url: this.mergeBaseUrlInput?.value?.trim() || '',
-      merge_api_key: this.mergeApiKeyInput?.value?.trim() || '',
-      merge_model: this.mergeModelInput?.value?.trim() || '',
-      merge_prompt: this.mergePromptInput?.value?.trim() || '',
-      merge_reasoning_effort: this.mergeReasoningEffortSelect?.value || '',
+      merge_use_ai: false,
       multi_source_enabled: this.multiSourceEnabledInput?.checked || false,
       transcription_sources: this.multiSourceEnabledInput?.checked ? JSON.stringify(this._getSelectedSources()) : '',
       merge_mode: this.mergeModeSelect?.value || '',
@@ -1537,33 +1493,6 @@ class VideoTranscriber {
     if (this.localApiPromptInput) this.localApiPromptInput.disabled = !showLocalApi;
 
     this._renderLocalCapabilities();
-    this._syncDualSettings();
-  }
-
-  _syncDualSettings() {
-    const isLocal = (this.transcriptionProviderSelect?.value || 'groq') === 'local';
-    if (!isLocal && this.dualLocalInput?.checked) {
-      this.dualLocalInput.checked = false;
-    }
-    const isDual = Boolean(this.dualLocalInput?.checked);
-    const showDual = isLocal && isDual;
-    const showDualWhisperCustom = this.dualWhisperModelPresetSelect?.value === 'custom';
-    const showDualParakeetCustom = this.dualParakeetModelPresetSelect?.value === 'custom';
-
-    if (this.dualLocalRow) this.dualLocalRow.classList.toggle('setting-hidden', !isLocal);
-    if (this.dualLocalInput) this.dualLocalInput.disabled = !isLocal;
-    this.dualLocalSettings?.forEach(el => el.classList.toggle('setting-hidden', !showDual));
-    if (this.dualWhisperCustomRow) this.dualWhisperCustomRow.classList.toggle('setting-hidden', !showDual || !showDualWhisperCustom);
-    if (this.dualParakeetCustomRow) this.dualParakeetCustomRow.classList.toggle('setting-hidden', !showDual || !showDualParakeetCustom);
-    if (this.dualWhisperModelPresetSelect) this.dualWhisperModelPresetSelect.disabled = !showDual;
-    if (this.dualParakeetModelPresetSelect) this.dualParakeetModelPresetSelect.disabled = !showDual;
-    if (this.dualWhisperModelIdInput) this.dualWhisperModelIdInput.disabled = !showDual || !showDualWhisperCustom;
-    if (this.dualParakeetModelIdInput) this.dualParakeetModelIdInput.disabled = !showDual || !showDualParakeetCustom;
-    if (this.trySubtitlesFirstRow) {
-      const hideForDual = showDual;
-      const hideForFile = (this.inputSourceMode || 'url') === 'file';
-      this.trySubtitlesFirstRow.classList.toggle('setting-hidden', hideForDual || hideForFile);
-    }
   }
 
   _syncMultiSourceSettings() {
@@ -1573,12 +1502,28 @@ class VideoTranscriber {
     const mergeMode = this.mergeModeSelect?.value || 'system';
     const showAiMerge = enabled && mergeMode === 'ai';
     const showPrimary = enabled && mergeMode === 'system' && checkedSources.length > 1;
+    const showLocalWhisper = enabled && checkedSources.includes('local_whisper');
+    const showLocalParakeet = enabled && checkedSources.includes('local_parakeet');
+    const showWhisperCustom = showLocalWhisper && this.dualWhisperModelPresetSelect?.value === 'custom';
+    const showParakeetCustom = showLocalParakeet && this.dualParakeetModelPresetSelect?.value === 'custom';
 
     if (this.multiSourceProviderPicker) this.multiSourceProviderPicker.classList.toggle('setting-hidden', !enabled);
     this.sourceCheckboxes.forEach(cb => { cb.disabled = !enabled; });
     this.multiSourceSections?.forEach(el => el.classList.toggle('setting-hidden', !hasSources));
     this.msMergeAiSettings?.forEach(el => el.classList.toggle('setting-hidden', !showAiMerge));
     if (this.mergePrimarySourceRow) this.mergePrimarySourceRow.classList.toggle('setting-hidden', !showPrimary);
+
+    // Local Whisper model controls
+    this.msLocalWhisperSettings?.forEach(el => el.classList.toggle('setting-hidden', !showLocalWhisper));
+    if (this.dualWhisperModelPresetSelect) this.dualWhisperModelPresetSelect.disabled = !showLocalWhisper;
+    if (this.dualWhisperCustomRow) this.dualWhisperCustomRow.classList.toggle('setting-hidden', !showWhisperCustom);
+    if (this.dualWhisperModelIdInput) this.dualWhisperModelIdInput.disabled = !showWhisperCustom;
+
+    // Local Parakeet model controls
+    this.msLocalParakeetSettings?.forEach(el => el.classList.toggle('setting-hidden', !showLocalParakeet));
+    if (this.dualParakeetModelPresetSelect) this.dualParakeetModelPresetSelect.disabled = !showLocalParakeet;
+    if (this.dualParakeetCustomRow) this.dualParakeetCustomRow.classList.toggle('setting-hidden', !showParakeetCustom);
+    if (this.dualParakeetModelIdInput) this.dualParakeetModelIdInput.disabled = !showParakeetCustom;
 
     // Update primary source dropdown to only show checked sources
     if (this.mergePrimarySourceSelect) {
@@ -1858,28 +1803,16 @@ class VideoTranscriber {
         this._hideProgress();
         return;
       }
-      const dualLocal = transcriptionProvider === 'local' && msSources.length === 0 && Boolean(this.dualLocalInput?.checked);
       const dualWhisperModelPreset = this.dualWhisperModelPresetSelect?.value || 'base';
       const dualWhisperModelId = this.dualWhisperModelIdInput?.value?.trim() || '';
       const dualParakeetModelPreset = this.dualParakeetModelPresetSelect?.value || '';
       const dualParakeetModelId = this.dualParakeetModelIdInput?.value?.trim() || '';
-      const mergeUseAi = this.mergeUseAiInput?.checked || false;
-      const mergeApiKey = this.mergeApiKeyInput?.value?.trim() || '';
-      const mergeBaseUrl = this.mergeBaseUrlInput?.value?.trim().replace(/\/$/, '') || '';
-      const mergeModel = this.mergeModelInput?.value?.trim() || '';
-      const mergePrompt = this.mergePromptInput?.value?.trim() || '';
-      const mergeReasoningEffort = this.mergeReasoningEffortSelect?.value || '';
-      fd.append('dual_local_transcription', dualLocal ? 'true' : 'false');
+      fd.append('dual_local_transcription', 'false');
       if (dualWhisperModelPreset) fd.append('dual_whisper_model_preset', dualWhisperModelPreset);
       if (dualWhisperModelId) fd.append('dual_whisper_model_id', dualWhisperModelId);
       if (dualParakeetModelPreset) fd.append('dual_parakeet_model_preset', dualParakeetModelPreset);
       if (dualParakeetModelId) fd.append('dual_parakeet_model_id', dualParakeetModelId);
-      fd.append('merge_use_ai', mergeUseAi ? 'true' : 'false');
-      if (mergeApiKey) fd.append('merge_api_key', mergeApiKey);
-      if (mergeBaseUrl) fd.append('merge_base_url', mergeBaseUrl);
-      if (mergeModel) fd.append('merge_model', mergeModel);
-      if (mergePrompt) fd.append('merge_prompt', mergePrompt);
-      if (mergeReasoningEffort) fd.append('merge_reasoning_effort', mergeReasoningEffort);
+      fd.append('merge_use_ai', 'false');
 
       // Multi-source fields
       if (msSources.length > 0) {

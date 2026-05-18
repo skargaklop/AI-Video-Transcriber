@@ -397,40 +397,42 @@ class ResolveMergeCredentialsTests(unittest.TestCase):
 
 
 class FrontendDualTests(unittest.TestCase):
-    def test_frontend_includes_dual_i18n_keys(self):
-        app_js = (PROJECT_ROOT / "static" / "app.js").read_text(encoding="utf-8")
-        self.assertIn("dual_local_transcription", app_js)
-        self.assertIn("dual_whisper_model", app_js)
-        self.assertIn("dual_parakeet_model", app_js)
-        self.assertIn("merge_settings", app_js)
-        self.assertIn("merge_use_ai", app_js)
-        self.assertIn("mode_dual_local", app_js)
-
-    def test_frontend_persists_merge_reasoning_effort_in_local_settings(self):
-        app_js = (PROJECT_ROOT / "static" / "app.js").read_text(encoding="utf-8")
-        self.assertIn("this.mergeReasoningEffortSelect,", app_js)
-        self.assertIn("mergeReasoningEffort: this.mergeReasoningEffortSelect?.value || ''", app_js)
-        self.assertIn(
-            "if (s.mergeReasoningEffort && this.mergeReasoningEffortSelect) this.mergeReasoningEffortSelect.value = s.mergeReasoningEffort;",
-            app_js,
-        )
-        self.assertIn("merge_reasoning_effort", app_js)
-
-    def test_frontend_sends_dual_form_fields(self):
-        app_js = (PROJECT_ROOT / "static" / "app.js").read_text(encoding="utf-8")
-        self.assertIn("dual_local_transcription", app_js)
-        self.assertIn("dual_whisper_model_preset", app_js)
-        self.assertIn("merge_use_ai", app_js)
-        self.assertIn("merge_api_key", app_js)
-
-    def test_index_html_has_dual_elements(self):
+    def test_frontend_no_dual_local_checkbox_in_html(self):
         index_html = (PROJECT_ROOT / "static" / "index.html").read_text(encoding="utf-8")
-        self.assertIn('id="dualLocalInput"', index_html)
+        self.assertNotIn('id="dualLocalInput"', index_html)
+        self.assertNotIn('id="mergeUseAiInput"', index_html)
+        self.assertNotIn('id="mergeApiKeyInput"', index_html)
+        self.assertNotIn('id="mergeReasoningEffortSelect"', index_html)
+        self.assertNotIn('id="mergeBaseUrlInput"', index_html)
+        self.assertNotIn('id="mergeModelInput"', index_html)
+        self.assertNotIn('id="mergePromptInput"', index_html)
+
+    def test_dual_model_controls_under_multi_source_in_html(self):
+        index_html = (PROJECT_ROOT / "static" / "index.html").read_text(encoding="utf-8")
         self.assertIn('id="dualWhisperModelPresetSelect"', index_html)
         self.assertIn('id="dualParakeetModelPresetSelect"', index_html)
-        self.assertIn('id="mergeUseAiInput"', index_html)
-        self.assertIn('id="mergeApiKeyInput"', index_html)
-        self.assertIn('id="mergeReasoningEffortSelect"', index_html)
+        self.assertIn('ms-local-whisper', index_html)
+        self.assertIn('ms-local-parakeet', index_html)
+
+    def test_frontend_always_sends_false_for_dual_local(self):
+        app_js = (PROJECT_ROOT / "static" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("fd.append('dual_local_transcription', 'false')", app_js)
+
+    def test_frontend_sends_dual_model_fields(self):
+        app_js = (PROJECT_ROOT / "static" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("dual_whisper_model_preset", app_js)
+        self.assertIn("dual_parakeet_model_preset", app_js)
+
+    def test_frontend_includes_legacy_dual_i18n_keys(self):
+        app_js = (PROJECT_ROOT / "static" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("mode_dual_local", app_js)
+
+    def test_frontend_no_dual_local_ui_logic(self):
+        app_js = (PROJECT_ROOT / "static" / "app.js").read_text(encoding="utf-8")
+        self.assertNotIn("_syncDualSettings", app_js)
+        self.assertNotIn("dualLocalInput", app_js)
+        self.assertNotIn("dualLocalRow", app_js)
+        self.assertNotIn("dualLocalSettings", app_js)
 
 
 class TimestampAlignmentTests(unittest.TestCase):
@@ -509,14 +511,14 @@ class EmptySpanFillTests(unittest.TestCase):
 
 
 class MaskedCredentialTests(unittest.TestCase):
-    def test_masked_merge_key_not_in_html(self):
+    def test_masked_ms_merge_key_not_set_in_html(self):
         """Masked merge key values should not be written into input fields."""
         app_js = (PROJECT_ROOT / "static" / "app.js").read_text(encoding="utf-8")
-        self.assertIn("merge_api_key.includes('...')", app_js)
+        self.assertIn("msMergeApiKey.includes('...')", app_js)
 
-    def test_frontend_has_merge_reasoning_control(self):
+    def test_frontend_has_ms_merge_controls(self):
         index_html = (PROJECT_ROOT / "static" / "index.html").read_text(encoding="utf-8")
-        self.assertIn('id="mergeReasoningEffortSelect"', index_html)
+        self.assertIn('id="msMergeApiKeyInput"', index_html)
 
 
 class CredentialFallbackTests(unittest.TestCase):
